@@ -5,6 +5,7 @@ import requests
 from twilio.rest import Client as TwilioClient
 
 import matrix_twilio_bridge.db 
+import matrix_twilio_bridge.web_config
 
 def create_app():
     app = Flask(__name__)
@@ -13,6 +14,9 @@ def create_app():
     matrix_headers = {"Authorization":"Bearer "+config['access_token']}
     matrix_base_url = 'http://' + config["homeserver"]
     db = matrix_twilio_bridge.db.DB()
+    matrix_twilio_bridge.web_config.db = db
+
+    app.register_blueprint(matrix_twilio_bridge.web_config.bp)
 
     @app.route('/')
     def hello():
@@ -114,6 +118,10 @@ def create_app():
             elif room_contains_bot:
                 if event["type"] == "m.room.message":
                     if event["content"]["msgtype"] == "m.text":
+                        text = event["content"]["body"]
+                        if text == "!config":
+                            config_url = config["base_url"] + "/config/" + db.updateAuthToken(sender) + "/"
+                            sendMsgToRoom(room_id, "@twilio_bot:"+config["homeserver"] , config_url)
                         print(event["content"]["body"])
                 
         return {}
