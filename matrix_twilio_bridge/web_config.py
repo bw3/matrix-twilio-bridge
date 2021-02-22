@@ -6,8 +6,8 @@ from flask import (
 
 import matrix_twilio_bridge.db
 
+db = matrix_twilio_bridge.db.db
 bp = Blueprint('web_config', __name__, url_prefix='/config')
-
 
 @bp.route('/<auth_token>/', methods=['GET'])
 def index(auth_token):

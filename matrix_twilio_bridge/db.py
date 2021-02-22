@@ -53,7 +53,4 @@ class DB:
         else:
             return result[0]
 
-
-    
-        
-
+db=DB()
