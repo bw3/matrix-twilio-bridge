@@ -3,24 +3,175 @@
 <head>
 <title> </title>
 <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-<div id="app">
-<a v-on:click="page = 'home'" style="cursor:pointer">Home</a>
-<a v-on:click="page = 'callplans'" style="cursor:pointer">CallPlans</a>
+<div id="app" style="width:100%;height:100%;">
+<a v-on:click="page = 'home'" href="#">Home</a>
+<hr/>
 <div v-if="page === 'home'">
-Home
+<a v-on:click="loadTwilioConfig" href="#">Twilio Config</a>
+<br/>
+<a v-on:click="loadIncomingNumbers" href="#">Incoming Numbers</a>
 </div>
-<div v-else-if="page === 'callplans'">
-Call Plans
+<div v-if="page === 'loading'">
+Loading ...
+</div>
+<div v-if="page === 'error'">
+Error:
+<br/>
+{{ error_msg }}
+</div>
+<div v-if="page === 'twilio-config'">
+<table>
+<tr><td><label for="twilio_sid">Sid</label></td><td><input v-model="twilio_config.sid" id="twilio_sid" size="40"/></td></tr>
+<tr><td><label for="twilio_auth">Auth</label></td><td><input v-model="twilio_config.auth" id="twilio_auth" size="40"/></td></tr>
+</table>
+<hr/>
+<a v-on:click="saveTwilioConfig" href="#">Save</a>
+</div>
+<div v-if="page === 'incoming-numbers'">
+<div v-for="number in incoming_numbers"><a v-on:click="loadIncomingNumber" href="#">{{ number }}</a></div>
+</div>
+<div v-if="page === 'incoming-number'">
+<input type="checkbox" v-model="incoming_number.data.hunt_enabled" id="hunt_enabled"/><label for="hunt_enabled">Forwarding</label>
+<br/>
+<label for="hunt_timeout">Ringing Time Limit (seconds)</label><input v-model="incoming_number.data.hunt_timeout" id="hunt_timeout" size="3"/>
+<table>
+<tr><td>Number</td><td>Extension</td></tr>
+<tr v-for="(entry,index) in incoming_number.data.hunt_numbers">
+    <td><input v-model="entry[0]" pattern="[+][0-9]+" placeholder="+15555555555" size="12"/></td>
+    <td><input v-model="entry[1]" size="5"/></td>
+    <td><a v-on:click="removeHuntNumber(index)" href="#">Remove</a></td></tr>
+</table>
+<a v-on:click="addHuntNumber" href="#">Add</a>
+<hr/>
+<input type="checkbox" v-model="incoming_number.data.voicemail_enabled" id="voicemail_enabled"/><label for="voicemail_enabled">Voicemail</label>
+<br/>
+<textarea v-model="incoming_number.data.voicemail_tts" id="voicemail_tts" style="width:100%;"></textarea>
+<br/>
+<label for="voicemail_timeout">Time Limit (seconds)</label><input v-model="incoming_number.data.voicemail_timeout" id="voicemail_timeout" size="3"/>
+<br/>
+<input type="checkbox" v-model="incoming_number.data.voicemail_transcribe" id="voicemail_transcribe"/><label for="voicemail_transcribe">Transcribe</label>
+<div v-if="!incoming_number.data.hunt_enabled && !incoming_number.data.voicemail_enabled">
+<hr/>
+NOTE: All calls will be rejected, since both forwarding and voicemail are disabled.
+</div>
+<hr/>
+<a v-on:click="saveIncomingNumber" href="#">Save</a>
 </div>
 </div>
 <script>
 var app = new Vue({
   el: '#app',
   data: {
-    message: 'Hello Vue!',
-    page: 'home'
+    page: 'home',
+    incoming_numbers: [],
+    incoming_number: {'data':{}},
+    twilio_config: {}
+  },
+  methods: {
+    loadTwilioConfig: function(event) {
+      this.page = 'loading'
+      fetch(window.location.origin + window.location.pathname + 'twilio-config/')
+        .then( response => {
+            if (!response.ok) {
+                throw new Error('Server responding with '+response.status + ' ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then( data => {
+            this.twilio_config = data;
+            this.page = 'twilio-config';
+        })
+        .catch( error => {
+            this.error_msg = error;
+            this.page = 'error';
+        })
+    },
+    saveTwilioConfig: function(event) {
+      this.page = 'loading'
+      fetch(window.location.origin + window.location.pathname + 'twilio-config/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8'
+        },
+        body: JSON.stringify(this.twilio_config)
+      })
+      .then( response => {
+        if (!response.ok) {
+            throw new Error('Server responding with '+response.status + ' ' + response.statusText);
+        }
+        this.page = 'home';
+      })
+      .catch( error => {
+          this.error_msg = error;
+          this.page = 'error';
+      })
+    },
+    loadIncomingNumbers: function(event) {
+      this.page = 'loading'
+      fetch(window.location.origin + window.location.pathname + 'incoming-numbers/')
+        .then( response => {
+            if (!response.ok) {
+                throw new Error('Server responding with '+response.status + ' ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then( data => {
+            this.incoming_numbers = data;
+            this.page = 'incoming-numbers';
+        })
+        .catch( error => {
+            this.error_msg = error;
+            this.page = 'error';
+        })
+    },
+    loadIncomingNumber: function(event) {
+      this.page = 'loading'
+      fetch(window.location.origin + window.location.pathname + 'incoming-numbers/' + event.target.text)
+        .then( response => {
+            if (!response.ok) {
+                throw new Error('Server responding with '+response.status + ' ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then( data => {
+            this.incoming_number.data = data;
+            this.incoming_number.name = event.target.text;
+            this.page = 'incoming-number';
+        })
+        .catch( error => {
+            this.error_msg = error;
+            this.page = 'error';
+        })
+    },
+    addHuntNumber: function() {
+        this.incoming_number.data.hunt_numbers.push(["",""]);
+    },
+    removeHuntNumber: function(index) {
+        this.incoming_number.data.hunt_numbers.splice(index,1);
+    },
+    saveIncomingNumber: function(event) {
+      this.page = 'loading'
+      fetch(window.location.origin + window.location.pathname + 'incoming-numbers/' + this.incoming_number.name, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8'
+        },
+        body: JSON.stringify(this.incoming_number.data)
+      })
+      .then( response => {
+        if (!response.ok) {
+            throw new Error('Server responding with '+response.status + ' ' + response.statusText);
+        }
+        this.page = 'home';
+      })
+      .catch( error => {
+          this.error_msg = error;
+          this.page = 'error';
+      })
+    }
   }
 })
 </script>
