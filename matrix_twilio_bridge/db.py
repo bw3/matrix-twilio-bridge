@@ -70,14 +70,14 @@ class DB:
         else:
             return (result[0], result[1])
 
-    def getMatrixIdFromSid(self, sid):
+    def getMatrixIdAuthFromSid(self, sid):
         cur = self._get_conn().cursor()
-        cur.execute('SELECT matrix_id FROM twilio_config WHERE sid=?',(sid,))
+        cur.execute('SELECT matrix_id,auth FROM twilio_config WHERE sid=?',(sid,))
         result = cur.fetchone()
         if result is None:
             return result
         else:
-            return result[0]
+            return (result[0], result[1])
 
     def setTwilioConfig(self, matrix_id, sid, auth):
         cur = self._get_conn().cursor()

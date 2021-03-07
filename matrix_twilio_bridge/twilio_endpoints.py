@@ -1,4 +1,4 @@
-import os,json,urllib,uuid,sqlite3
+import os,json,urllib,uuid,sqlite3,functools
 
 from flask import (
     Flask, render_template, request, abort, redirect, Blueprint, flash, g, redirect, render_template, request, session, url_for, abort
@@ -7,6 +7,7 @@ from flask import (
 import requests
 from twilio.rest import Client as TwilioClient
 from twilio.twiml.voice_response import Dial, VoiceResponse, Say
+from twilio.request_validator import RequestValidator
 
 import matrix_twilio_bridge.db
 import matrix_twilio_bridge.util as util
@@ -15,9 +16,22 @@ db = matrix_twilio_bridge.db.db
 config = matrix_twilio_bridge.util.config
 bp = Blueprint('twilio', __name__, url_prefix='/twilio')
 
+def validate_twilio_request(f):
+    """Validates that incoming requests genuinely originated from Twilio"""
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        (matrix_id,auth) = db.getMatrixIdAuthFromSid(request.form["AccountSid"])
+        validator = RequestValidator(auth)
+        request_valid = validator.validate( request.url, request.form, request.headers.get('X-TWILIO-SIGNATURE', ''))
+        if request_valid:
+            return f(matrix_id, *args, **kwargs)
+        else:
+            return abort(403)
+    return decorated_function
+
 @bp.route('/conversation', methods=['POST'])
-def twilio_msg_recieved():
-    matrix_id = db.getMatrixIdFromSid(request.form["AccountSid"])
+@validate_twilio_request
+def twilio_msg_recieved(matrix_id):
     author = "@twilio_" + request.form['Author'] + ":" + config["homeserver"]
     conversation_sid = request.form['ConversationSid']
     room_id = util.getRoomId(matrix_id, conversation_sid)
@@ -39,8 +53,8 @@ def twilio_msg_recieved():
     return {}
 
 @bp.route('/call', methods=['POST'])
-def twilio_call():
-    matrix_id = db.getMatrixIdFromSid(request.form["AccountSid"])
+@validate_twilio_request
+def twilio_call(matrix_id):
     direction = request.values['Direction']
     to_number = request.values['To']
     from_number = request.values['From']
@@ -58,8 +72,8 @@ def twilio_call():
     return str(response)
 
 @bp.route('/voicemail', methods=['POST'])
-def twilio_voicemail():
-    matrix_id = db.getMatrixIdFromSid(request.form["AccountSid"])
+@validate_twilio_request
+def twilio_voicemail(matrix_id):
     twilio_client = util.getTwilioClient(matrix_id)
     call = twilio_client.calls(request.values["CallSid"]).fetch()
     to_number = call.to
@@ -89,8 +103,8 @@ def twilio_voicemail():
     return str(response)
 
 @bp.route('/voicemail_recording', methods=['POST'])
-def twilio_voicemail_recording():
-    matrix_id = db.getMatrixIdFromSid(request.form["AccountSid"])
+@validate_twilio_request
+def twilio_voicemail_recording(matrix_id):
     twilio_client = util.getTwilioClient(matrix_id)
     call = twilio_client.calls(request.values["CallSid"]).fetch()
     to_number = call.to
@@ -104,8 +118,7 @@ def twilio_voicemail_recording():
     return {}
 
 @bp.route('/voicemail_transcription', methods=['POST'])
-def twilio_voicemail_transcription():
-    matrix_id = db.getMatrixIdFromSid(request.form["AccountSid"])
+def twilio_voicemail_transcription(matrix_id):
     twilio_client = util.getTwilioClient(matrix_id)
     call = twilio_client.calls(request.values["CallSid"]).fetch()
     to_number = call.to
