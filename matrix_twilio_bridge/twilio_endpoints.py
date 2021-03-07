@@ -32,7 +32,7 @@ def validate_twilio_request(f):
 @bp.route('/conversation', methods=['POST'])
 @validate_twilio_request
 def twilio_msg_recieved(matrix_id):
-    author = "@twilio_" + request.form['Author'] + ":" + config["homeserver"]
+    author = util.getMatrixId(request.form['Author'])
     conversation_sid = request.form['ConversationSid']
     room_id = util.getRoomId(matrix_id, conversation_sid)
     if 'Media' in request.form:
@@ -45,7 +45,6 @@ def twilio_msg_recieved(matrix_id):
             content_type = entry["ContentType"]
             filename = entry["Filename"]
             r = requests.get("https://mcs.us1.twilio.com/v1/Services/" + chat_service_sid + "/Media/" + media_sid + "/Content", auth=twilio_auth)
-            print(r)
             util.postFileToRoom(room_id, author, content_type, r.content, filename)
     if 'Body' in request.form:
         text = request.form['Body']
@@ -86,7 +85,7 @@ def twilio_voicemail(matrix_id):
     response = VoiceResponse()
     if json_config["voicemail_enabled"] and call_status != "completed":
         room_id = util.getRoomId(matrix_id, to_number=to_number, from_number=from_number)#"!QFrcdqtYqJaDAAAkIy:localhost:8008"
-        author = "@twilio_bot:" + config["homeserver"]
+        author = util.getBotMatrixId()
         util.sendMsgToRoom(room_id,author, "missed call")
         response.say(json_config["voicemail_tts"])
         kwargs = {
@@ -113,11 +112,12 @@ def twilio_voicemail_recording(matrix_id):
     recording_url = request.values["RecordingUrl"]
     r = requests.get(recording_url+".mp3")
     room_id = util.getRoomId(matrix_id, to_number=to_number, from_number=from_number)#"!QFrcdqtYqJaDAAAkIy:localhost:8008"
-    author = "@twilio_bot:" + config["homeserver"]
+    author = util.getBotMatrixId()
     util.postFileToRoom(room_id, author, r.headers["content-type"], r.content, "voicemail.mp3")
     return {}
 
 @bp.route('/voicemail_transcription', methods=['POST'])
+@validate_twilio_request
 def twilio_voicemail_transcription(matrix_id):
     twilio_client = util.getTwilioClient(matrix_id)
     call = twilio_client.calls(request.values["CallSid"]).fetch()
@@ -127,7 +127,7 @@ def twilio_voicemail_transcription(matrix_id):
     recording_url = request.values["RecordingUrl"]
     r = requests.get(recording_url+".mp3")
     room_id = util.getRoomId(matrix_id, to_number=to_number, from_number=from_number)#"!QFrcdqtYqJaDAAAkIy:localhost:8008"
-    author = "@twilio_bot:" + config["homeserver"]
+    author = util.getBotMatrixId()
     util.sendMsgToRoom(room_id,author, request.values["TranscriptionText"])
     return {}
 

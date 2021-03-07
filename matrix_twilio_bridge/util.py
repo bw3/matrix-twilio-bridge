@@ -1,4 +1,4 @@
-import os,json,urllib,uuid,sqlite3
+import os,json,urllib,uuid,sqlite3,configparser
 
 from flask import (Flask, render_template, request, abort)
 import requests
@@ -7,10 +7,8 @@ from twilio.rest import Client as TwilioClient
 import matrix_twilio_bridge.db 
 
 db = matrix_twilio_bridge.db.db
-with open('config') as f:
-   config = json.load(f)
-matrix_headers = {"Authorization":"Bearer "+config['access_token']}
-matrix_base_url = 'http://' + config["homeserver"]
+config = configparser.ConfigParser()
+config.read('config')
 
 def get_conversation_participants(matrix_id,conversation_sid):
     twilio_client = getTwilioClient(matrix_id)
@@ -37,7 +35,7 @@ def get_conversation_author(matrix_id,conversation_sid):
     
 
 def get_room_members(room_id):
-    r = requests.get(matrix_base_url + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = matrix_headers)
+    r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())
     return r.json()['joined'].keys()
 
 def getRoomId(matrix_username, conversation_sid=None, to_number="", from_number=""):
@@ -59,7 +57,7 @@ def getRoomId(matrix_username, conversation_sid=None, to_number="", from_number=
     if room_id is not None:
         setRoomUsers(matrix_username, room_id, conversation_sid)
         return room_id
-    r = requests.post(matrix_base_url + '/_matrix/client/r0/createRoom', headers = matrix_headers, json = { "preset": "private_chat" })#, params={"user_id":"@twilio_bot:"+config["homeserver"]})
+    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = getMatrixHeaders(), json = { "preset": "private_chat" })
     if r.status_code != 200:
         abort(500)
     room_id = r.json()['room_id']
@@ -72,32 +70,32 @@ def addUserToRoom(room_id, username) :
     user_data = { 
         "username": username.split(':')[0].removeprefix('@')
     }
-    r = requests.post(matrix_base_url + '/_matrix/client/r0/register', headers = matrix_headers, json = user_data)
+    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/register', headers = getMatrixHeaders(), json = user_data)
     invite_data = {
         "user_id": username
     }
-    r = requests.post(matrix_base_url + '/_matrix/client/r0/rooms/'+room_id+'/invite', headers = matrix_headers, json = invite_data)
-    if not username.startswith("@twilio_"):
+    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/invite', headers = getMatrixHeaders(), json = invite_data)
+    if not isTwilioUser(username):
         return
-    r = requests.post(matrix_base_url + '/_matrix/client/r0/rooms/'+room_id+'/join', headers = matrix_headers, params={"user_id":username})
+    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/join', headers = getMatrixHeaders(), params={"user_id":username})
     if r.status_code != 200:
         abort(500)
 
 def removeUserFromRoom(room_id, username):
-    r = requests.post(matrix_base_url + '/_matrix/client/r0/rooms/'+room_id+'/leave', headers = matrix_headers, params={"user_id":username})
+    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/leave', headers = getMatrixHeaders(), params={"user_id":username})
     if r.status_code != 200:
         abort(500)
 
 def setRoomUsers(matrix_username, room_id, conversation_sid):
     room_users = get_conversation_participants(matrix_username,conversation_sid)
     for i in range(len(room_users)):
-        room_users[i] = "@twilio_" +  room_users[i]+ ":" + config["homeserver"]
-    room_users.append("@twilio_bot:"+config["homeserver"])
+        room_users[i] = getMatrixId(room_users[i])
+    room_users.append(getBotMatrixId())
     room_users.append(matrix_username)
     username_set_goal = set(room_users)
 
     username_set_current = set()
-    r = requests.get(matrix_base_url + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = matrix_headers)#, params={"user_id":"twilio_bot"})
+    r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())#, params={"user_id":"twilio_bot"})
 
     for username in r.json()['joined'].keys():
         username_set_current.add(username)
@@ -110,17 +108,17 @@ def setRoomUsers(matrix_username, room_id, conversation_sid):
         if username not in username_set_current:
             addUserToRoom(room_id,username)
 
-    r = requests.get(matrix_base_url + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = matrix_headers)
+    r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())
 
 def sendMsgToRoom(room_id, username, text):
     msg_data = {
         "msgtype": "m.text",
         "body": text
     }
-    r = requests.put(matrix_base_url + '/_matrix/client/r0/rooms/' + room_id + '/send/m.room.message/'+str(uuid.uuid4()), headers = matrix_headers, json = msg_data, params={"user_id":username} )
+    r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id + '/send/m.room.message/'+str(uuid.uuid4()), headers = getMatrixHeaders(), json = msg_data, params={"user_id":username} )
 
 def postFileToRoom(room_id, username, mimetype, data, filename):
-    r = requests.post(matrix_base_url + '/_matrix/media/r0/upload', data=data, headers = matrix_headers | {'Content-Type':mimetype})
+    r = requests.post(getHomeserverAddress() + '/_matrix/media/r0/upload', data=data, headers = getMatrixHeaders() | {'Content-Type':mimetype})
     if r.status_code != 200:
         abort(500)
     content_uri = r.json()["content_uri"]
@@ -140,7 +138,7 @@ def postFileToRoom(room_id, username, mimetype, data, filename):
             "mimetype": mimetype
         }
     }
-    r = requests.put(matrix_base_url + '/_matrix/client/r0/rooms/' + room_id + '/send/m.room.message/'+str(uuid.uuid4()), headers = matrix_headers, json = msg_data, params={"user_id":username} )
+    r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id + '/send/m.room.message/'+str(uuid.uuid4()), headers = getMatrixHeaders(), json = msg_data, params={"user_id":username} )
 
 def getTwilioClient(matrix_id):
     try:
@@ -169,3 +167,32 @@ def getIncomingNumberConfig(matrix_id, number):
     config.setdefault("voicemail_transcribe", False)
     return config
 
+def getHomeserverDomain():
+    return config["homeserver"]["domain"]
+
+def getHomeserverAddress():
+    return config["homeserver"]["address"]
+
+def getAppserviceAsToken():
+    return config["appservice"]["as_token"]
+
+def getAppserviceHsToken():
+    return config["appservice"]["hs_token"]
+
+def getAppserviceAddress():
+    return config["appservice"]["address"]
+
+def getMatrixHeaders():
+    return {"Authorization":"Bearer "+getAppserviceAsToken()}
+
+def isTwilioBot(matrix_id):
+    return matrix_id == getBotMatrixId()
+
+def isTwilioUser(matrix_id):
+    return matrix_id.startswith("@"+ config["appservice"]["id"]) and not isTwilioBot(matrix_id)
+
+def getMatrixId(phoneNumber):
+    return "@" + config["appservice"]["id"] +  phoneNumber + ":" + getHomeserverDomain()
+
+def getBotMatrixId():
+    return "@" + config["appservice"]["bot_username"] + ":" + getHomeserverDomain()

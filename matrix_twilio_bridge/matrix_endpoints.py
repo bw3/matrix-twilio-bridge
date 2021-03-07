@@ -13,13 +13,11 @@ import matrix_twilio_bridge.util as util
 db = matrix_twilio_bridge.db.db
 config = matrix_twilio_bridge.util.config
 bp = Blueprint('matrix', __name__, url_prefix='/matrix')
-matrix_headers = {"Authorization":"Bearer "+config['access_token']}
-matrix_base_url = 'http://' + config["homeserver"]
 
 def confirm_auth(request):
     if not "access_token" in request.args:
         abort(401)
-    if not request.args["access_token"] == config['hs_token']:
+    if not request.args["access_token"] == util.getAppserviceHsToken():
         abort(403)
 
 @bp.route('/app/v1/transactions/<txnId>', methods=['PUT'])
@@ -32,16 +30,16 @@ def matrix_event(txnId):
         if "state_key" in event:
             if event["type"] == "m.room.member" and event["content"]["membership"] == "invite":
                 username = event["state_key"]
-                if username.startswith("@twilio_"):
-                    r = requests.post(matrix_base_url + '/_matrix/client/r0/rooms/'+room_id+'/join', headers = matrix_headers, params={"user_id":username})
+                if util.isTwilioUser(username) or util.isTwilioBot(username):
+                    r = requests.post(util.getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/join', headers = util.getMatrixHeaders(), params={"user_id":username})
             return {}
         room_members = util.get_room_members(room_id)
         room_contains_phone = False
         room_contains_bot = False
         for member in room_members:
-            if member.startswith("@twilio_+"):
+            if util.isTwilioUser(member):
                 room_contains_phone = True
-            if member.startswith("@twilio_bot"):
+            if util.isTwilioBot(member):
                 room_contains_bot = True
         if room_contains_phone:
             twilio_client = util.getTwilioClient(sender)
@@ -62,7 +60,7 @@ def matrix_event(txnId):
                         return {}
                     url = url[6:]
                     chat_service_sid = twilio_client.conversations.conversations(conversation_sid).fetch().chat_service_sid
-                    r = requests.get(matrix_base_url + '/_matrix/media/r0/download/' + url, headers = matrix_headers, stream=True)
+                    r = requests.get(util.getHomeserverAddress() + '/_matrix/media/r0/download/' + url, headers = util.getMatrixHeaders(), stream=True)
                     file_bytes = r.content
                     hdrs = {"Content-Type": r.headers["content-type"]}
                     r = requests.post('https://mcs.us1.twilio.com/v1/Services/' + chat_service_sid + '/Media', data = file_bytes, auth=twilio_auth, headers = hdrs)
@@ -73,8 +71,8 @@ def matrix_event(txnId):
                 if event["content"].get("msgtype","") == "m.text":
                     text = event["content"]["body"]
                     if text == "!config":
-                        config_url = config["base_url"] + "/config/" + db.updateAuthToken(sender) + "/"
-                        util.sendMsgToRoom(room_id, "@twilio_bot:"+config["homeserver"] , config_url)
+                        config_url = util.getAppserviceAddress() + "/config/" + db.updateAuthToken(sender) + "/"
+                        util.sendMsgToRoom(room_id, util.getBotMatrixId() , config_url)
             
     return {}
 
@@ -84,7 +82,7 @@ def matrix_user_exists(userId):
     user_data = {
         "username": userId.split(':')[0].removeprefix('@')
     }
-    r = requests.post(matrix_base_url + '/_matrix/client/r0/register', headers = matrix_headers, json = user_data, params={"user_id":"@twilio_bot:"+config["homeserver"]})
+    r = requests.post(util.getHomeserverAddress() + '/_matrix/client/r0/register', headers = util.getMatrixHeaders(), json = user_data, params={"user_id":util.getBotMatrixId()})
     if r.status_code != 200:
         abort(500)
     return {}
@@ -96,9 +94,9 @@ def matrix_room_exists(roomAlias):
         "preset": "private_chat",
         "room_alias_name": roomAlias.split(':')[0].removeprefix('#'),
     }
-    r = requests.post(matrix_base_url + '/_matrix/client/r0/createRoom', headers = matrix_headers, json = room_data)#, params={"user_id":"@twilio_bot:"+config["homeserver"]})
+    r = requests.post(util.getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = util.getMatrixHeaders(), json = room_data)
     if r.status_code != 200:
         abort(500)
     room_id = r.json()['room_id']
-    r = requests.post(matrix_base_url + '/_matrix/client/r0/rooms/'+ room_id + '/join', headers = matrix_headers)
+    r = requests.post(util.getHomeserverAddress() + '/_matrix/client/r0/rooms/'+ room_id + '/join', headers = util.getMatrixHeaders())
     return {}
