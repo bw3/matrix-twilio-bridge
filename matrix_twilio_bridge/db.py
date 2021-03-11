@@ -2,13 +2,23 @@ import sqlite3
 import string
 import secrets
 import threading
+import json
 
 class DB:
 
     def __init__(self):
         self.thread_local = threading.local()
         cur = self._get_conn().cursor()
-        cur.execute('CREATE TABLE IF NOT EXISTS room_conversation (matrix_id text, room_id text, conversation_sid text)')
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS room_numbers (
+                matrix_id text NOT NULL, 
+                room_id text UNIQUE NOT NULL, 
+                conversation_sid text, 
+                numbers text NOT NULL,
+                CONSTRAINT unique_room_numbers UNIQUE(matrix_id, numbers)
+            )
+
+        """)
         cur.execute('CREATE TABLE IF NOT EXISTS web_config_auth (matrix_id text UNIQUE, auth_token text UNIQUE)')
         cur.execute('CREATE TABLE IF NOT EXISTS twilio_config (matrix_id text UNIQUE, sid text, auth text)')
         cur.execute('CREATE TABLE IF NOT EXISTS incoming_number (matrix_id text, number text, config text, CONSTRAINT unique_incoming_number UNIQUE(matrix_id, number))')
@@ -19,27 +29,59 @@ class DB:
             self.thread_local.conn = sqlite3.connect('db')
         return self.thread_local.conn
 
-    def getRoomId(self, matrix_id, conversation_sid):
+    def getNumbersForRoomId(self, matrix_id, room_id):
         cur = self._get_conn().cursor()
-        cur.execute('SELECT room_id FROM room_conversation WHERE matrix_id=? AND conversation_sid=?',(matrix_id,conversation_sid))
+        cur.execute('SELECT numbers FROM room_numbers WHERE matrix_id=? AND room_id=?',(matrix_id,room_id))
+        result = cur.fetchone()
+        if result is None:
+            return result
+        else:
+            return json.loads(result[0])
+
+
+    def getRoomId(self, matrix_id, numbers):
+        numbers = list(numbers)
+        numbers.sort()
+        numbers = json.dumps(numbers)
+        cur = self._get_conn().cursor()
+        cur.execute('SELECT room_id FROM room_numbers WHERE matrix_id=? AND numbers=?',(matrix_id,numbers))
         result = cur.fetchone()
         if result is None:
             return result
         else:
             return result[0]
 
-    def getConversationSid(self, matrix_id, room_id):
+    def getConversationSid(self, matrix_id, numbers):
+        numbers = list(numbers)
+        numbers.sort()
+        numbers = json.dumps(numbers)
         cur = self._get_conn().cursor()
-        cur.execute('SELECT conversation_sid FROM room_conversation WHERE matrix_id=? AND room_id=?',(matrix_id,room_id))
+        cur.execute('SELECT conversation_sid FROM room_numbers WHERE matrix_id=? AND numbers=?',(matrix_id,numbers))
         result = cur.fetchone()
         if result is None:
             return result
         else:
             return result[0]
 
-    def linkRoomConversation(self, matrix_id, room_id, conversation_sid):
+    def setRoomForNumbers(self, matrix_id, room_id, numbers):
+        numbers = list(numbers)
+        numbers.sort()
+        numbers = json.dumps(numbers)
         cur = self._get_conn().cursor()
-        cur.execute('INSERT INTO room_conversation VALUES (?,?,?)',(matrix_id, room_id, conversation_sid))
+        cur.execute('SELECT room_id FROM room_numbers WHERE matrix_id=? AND numbers=?',(matrix_id,numbers))
+        result = cur.fetchone()
+        if result is None:
+            cur.execute('INSERT INTO room_numbers (matrix_id, room_id, numbers) VALUES (?,?,?)',(matrix_id, room_id, numbers))
+        elif result[0] != room_id:
+            cur.execute('UPDATE room_numbers SET room_id = ? WHERE matrix_id = ? AND numbers = ?',(room_id, matrix_id, numbers))
+        self._get_conn().commit()
+
+    def setConversationSidForNumbers(self, matrix_id, conversation_sid, numbers):
+        numbers = list(numbers)
+        numbers.sort()
+        numbers = json.dumps(numbers)
+        cur = self._get_conn().cursor()
+        cur.execute('UPDATE room_numbers SET conversation_sid=? WHERE matrix_id=? AND numbers=?',(conversation_sid, matrix_id, numbers))
         self._get_conn().commit()
 
     def updateAuthToken(self, matrix_id):

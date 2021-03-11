@@ -1,4 +1,4 @@
-import os,json,urllib,uuid,sqlite3
+import os, json, urllib, uuid, sqlite3, traceback
 
 from flask import (
     Flask, render_template, request, abort, Blueprint, flash, g, redirect, render_template, request, session, url_for, abort
@@ -28,6 +28,10 @@ def matrix_event(txnId):
         sender = event["sender"]
         room_id = event["room_id"]
         if "state_key" in event:
+            try:
+                util.setRoomUsers(sender, room_id)
+            except:
+                traceback.print_exc()
             if event["type"] == "m.room.member" and event["content"]["membership"] == "invite":
                 username = event["state_key"]
                 if util.isTwilioUser(username) or util.isTwilioBot(username):
@@ -42,30 +46,36 @@ def matrix_event(txnId):
             if util.isTwilioBot(member):
                 room_contains_bot = True
         if room_contains_phone:
-            twilio_client = util.getTwilioClient(sender)
-            if twilio_client is None:
+            if util.isTwilioUser(sender) or util.isTwilioBot(sender):
                 return {}
-            twilio_auth = db.getTwilioAuthPair(sender)
-            conversation_sid = db.getConversationSid(sender,room_id)
-            twilio_author = util.get_conversation_author(sender,conversation_sid)
-            if event["type"] == "m.room.message":
-                if event["content"].get("msgtype","") == "m.text":
-                    text = event["content"]["body"]
-                    room_id = event["room_id"]
-                    conversation_sid = db.getConversationSid(sender,room_id)
-                    twilio_client.conversations.conversations(conversation_sid).messages.create(author=twilio_author, body=text)
-                elif event["content"].get("msgtype","") in ["m.image", "m.file", "m.audio", "m.video"]:
-                    url = event["content"]["url"]
-                    if url is None or not url.startswith("mxc://"):
-                        return {}
-                    url = url[6:]
-                    chat_service_sid = twilio_client.conversations.conversations(conversation_sid).fetch().chat_service_sid
-                    r = requests.get(util.getHomeserverAddress() + '/_matrix/media/r0/download/' + url, headers = util.getMatrixHeaders(), stream=True)
-                    file_bytes = r.content
-                    hdrs = {"Content-Type": r.headers["content-type"]}
-                    r = requests.post('https://mcs.us1.twilio.com/v1/Services/' + chat_service_sid + '/Media', data = file_bytes, auth=twilio_auth, headers = hdrs)
-                    media_sid = r.json()["sid"]
-                    twilio_client.conversations.conversations(conversation_sid).messages.create(author=twilio_author, media_sid=media_sid)
+            try:
+                twilio_auth = db.getTwilioAuthPair(sender)
+                (conversation, twilio_author) = util.findConversationAndAuthor(sender,room_id)
+                if event["type"] == "m.room.message":
+                    if event["content"].get("msgtype","") == "m.text":
+                        text = event["content"]["body"]
+                        room_id = event["room_id"]
+                        conversation.messages.create(author=twilio_author, body=text)
+                    elif event["content"].get("msgtype","") in ["m.image", "m.file", "m.audio", "m.video"]:
+                        url = event["content"]["url"]
+                        if url is None or not url.startswith("mxc://"):
+                            return {}
+                        url = url[6:]
+                        chat_service_sid = conversation.fetch().chat_service_sid
+                        r = requests.get(util.getHomeserverAddress() + '/_matrix/media/r0/download/' + url, headers = util.getMatrixHeaders(), stream=True)
+                        file_bytes = r.content
+                        hdrs = {"Content-Type": r.headers["content-type"]}
+                        r = requests.post('https://mcs.us1.twilio.com/v1/Services/' + chat_service_sid + '/Media', data = file_bytes, auth=twilio_auth, headers = hdrs)
+                        media_sid = r.json()["sid"]
+                        conversation.messages.create(author=twilio_author, media_sid=media_sid)
+            except:
+                exc1 = traceback.format_exc()
+                try:
+                    util.addUserToRoom(room_id, util.getBotMatrixId())
+                    util.sendMsgToRoom(room_id, util.getBotMatrixId(), traceback.format_exc())
+                except:
+                    print(exc1)
+                    traceback.print_exc()
         elif room_contains_bot:
             if event["type"] == "m.room.message":
                 if event["content"].get("msgtype","") == "m.text":

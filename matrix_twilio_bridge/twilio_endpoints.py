@@ -34,7 +34,8 @@ def validate_twilio_request(f):
 def twilio_msg_recieved(matrix_id):
     author = util.getMatrixId(request.form['Author'])
     conversation_sid = request.form['ConversationSid']
-    room_id = util.getRoomId(matrix_id, conversation_sid)
+    numbers = util.get_conversation_participants(matrix_id,conversation_sid)
+    room_id = util.findRoomId(matrix_id,numbers,conversation_sid)
     if 'Media' in request.form:
         twilio_client = util.getTwilioClient(matrix_id)
         twilio_auth = db.getTwilioAuthPair(matrix_id)
@@ -84,7 +85,7 @@ def twilio_voicemail(matrix_id):
     json_config = util.getIncomingNumberConfig(matrix_id, to_number)
     response = VoiceResponse()
     if json_config["voicemail_enabled"] and call_status != "completed":
-        room_id = util.getRoomId(matrix_id, to_number=to_number, from_number=from_number)#"!QFrcdqtYqJaDAAAkIy:localhost:8008"
+        room_id = util.findRoomId(matrix_id,[to_number] + [from_number])
         author = util.getBotMatrixId()
         util.sendMsgToRoom(room_id,author, "missed call")
         response.say(json_config["voicemail_tts"])
@@ -111,7 +112,7 @@ def twilio_voicemail_recording(matrix_id):
     json_config = util.getIncomingNumberConfig(matrix_id, to_number)
     recording_url = request.values["RecordingUrl"]
     r = requests.get(recording_url+".mp3")
-    room_id = util.getRoomId(matrix_id, to_number=to_number, from_number=from_number)#"!QFrcdqtYqJaDAAAkIy:localhost:8008"
+    room_id = util.findRoomId(matrix_id,[to_number] + [from_number])
     author = util.getBotMatrixId()
     util.postFileToRoom(room_id, author, r.headers["content-type"], r.content, "voicemail.mp3")
     return {}
@@ -126,7 +127,7 @@ def twilio_voicemail_transcription(matrix_id):
     json_config = util.getIncomingNumberConfig(matrix_id, to_number)
     recording_url = request.values["RecordingUrl"]
     r = requests.get(recording_url+".mp3")
-    room_id = util.getRoomId(matrix_id, to_number=to_number, from_number=from_number)#"!QFrcdqtYqJaDAAAkIy:localhost:8008"
+    room_id = util.findRoomId(matrix_id,[to_number] + [from_number])
     author = util.getBotMatrixId()
     util.sendMsgToRoom(room_id,author, request.values["TranscriptionText"])
     return {}

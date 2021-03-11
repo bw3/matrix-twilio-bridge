@@ -1,4 +1,4 @@
-import os,json,urllib,uuid,sqlite3,configparser
+import os,json,urllib,uuid,sqlite3,configparser, traceback
 
 from flask import (Flask, render_template, request, abort)
 import requests
@@ -9,6 +9,70 @@ import matrix_twilio_bridge.db
 db = matrix_twilio_bridge.db.db
 config = configparser.ConfigParser()
 config.read('config')
+
+def validateNumbers(matrix_id,numbers):
+    twilio_client = getTwilioClient(matrix_id)
+    numbers = set(numbers)
+    num_incoming_phone_numbers = 0
+    for entry in twilio_client.incoming_phone_numbers.list():
+        if entry.phone_number in numbers:
+            num_incoming_phone_numbers += 1
+            twilio_number = entry.phone_number
+    if num_incoming_phone_numbers < 1:
+        raise Exception('No twilio number found')
+    if num_incoming_phone_numbers > 1:
+        raise Exception('More than 1 twilio number found')
+    if len(numbers) < 2:
+        raise Exception('Missing phone number')
+    numbers.remove(twilio_number)
+    return (twilio_number, list(numbers))
+
+def createRoom(matrix_id,numbers):
+    twilio_client = getTwilioClient(matrix_id)
+    validateNumbers(matrix_id,numbers)
+    is_direct = len(numbers) == 2
+    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = getMatrixHeaders(), json = { "preset": "private_chat", "is_direct":is_direct})
+    room_id = r.json()['room_id']
+    db.setRoomForNumbers(matrix_id, room_id, numbers)
+    setRoomUsers(matrix_id, room_id)
+    return room_id
+    
+def findConversationAndAuthor(matrix_id,room_id):
+    numbers = set()
+    for mid in get_room_members(room_id):
+        if isTwilioUser(mid):
+            numbers.add(getPhoneNumber(mid))
+    twilio_client = getTwilioClient(matrix_id)
+    db.setRoomForNumbers(matrix_id,room_id,numbers)
+    conversation_sid = db.getConversationSid(matrix_id,numbers)
+    (twilio_number,other_numbers) = validateNumbers(matrix_id,numbers)
+    if conversation_sid is not None:
+        try:
+            conversation = twilio_client.conversations.conversations(conversation_sid)
+            conversation.fetch()
+            return (conversation,twilio_number)
+        except:
+            pass
+    conversation = twilio_client.conversations.conversations.create()
+    if len(other_numbers) == 1:
+        conversation.participants.create(
+            messaging_binding_proxy_address=twilio_number,
+            messaging_binding_address=other_numbers[0]
+        )
+    else:
+        for to_number in other_numbers:
+            conversation.participants.create(messaging_binding_address=to_number)
+        conversation.participants.create(messaging_binding_projected_address=twilio_number)
+    db.setConversationSidForNumbers(matrix_id,conversation.sid,numbers)
+    return (conversation,twilio_number)
+
+def findRoomId(matrix_id,numbers,conversation_sid=None):
+    room_id = db.getRoomId(matrix_id,numbers)
+    if room_id is None:
+        room_id = createRoom(matrix_id,numbers)
+    if conversation_sid is not None:
+        db.setConversationSidForNumbers(matrix_id,conversation_sid,numbers)
+    return room_id
 
 def get_conversation_participants(matrix_id,conversation_sid):
     twilio_client = getTwilioClient(matrix_id)
@@ -38,34 +102,6 @@ def get_room_members(room_id):
     r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())
     return r.json()['joined'].keys()
 
-def getRoomId(matrix_username, conversation_sid=None, to_number="", from_number=""):
-    twilio_client = getTwilioClient(matrix_username)
-    if conversation_sid is None:
-        conversations = twilio_client.conversations.conversations.list()
-        for record in conversations:
-            participants = twilio_client.conversations.conversations(record.sid).participants.list()
-            for participant in participants:
-                if participant.messaging_binding.get("address","") == from_number and participant.messaging_binding.get("proxy_address","") == to_number:
-                    conversation_sid = record.sid
-    if conversation_sid is None:
-        conversation_sid = twilio_client.conversations.conversations.create().sid
-        twilio_client.conversations.conversations(conversation_sid).participants.create(
-            messaging_binding_address=from_number,
-            messaging_binding_proxy_address=to_number
-        )
-    room_id = db.getRoomId(matrix_username, conversation_sid)
-    if room_id is not None:
-        setRoomUsers(matrix_username, room_id, conversation_sid)
-        return room_id
-    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = getMatrixHeaders(), json = { "preset": "private_chat" })
-    if r.status_code != 200:
-        abort(500)
-    room_id = r.json()['room_id']
-    db.linkRoomConversation(matrix_username, room_id, conversation_sid)
-    setRoomUsers(matrix_username, room_id, conversation_sid)
-    return room_id
-    
-
 def addUserToRoom(room_id, username) :
     user_data = { 
         "username": username.split(':')[0].removeprefix('@')
@@ -75,23 +111,21 @@ def addUserToRoom(room_id, username) :
         "user_id": username
     }
     r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/invite', headers = getMatrixHeaders(), json = invite_data)
-    if not isTwilioUser(username):
-        return
-    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/join', headers = getMatrixHeaders(), params={"user_id":username})
-    if r.status_code != 200:
-        abort(500)
 
 def removeUserFromRoom(room_id, username):
     r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/leave', headers = getMatrixHeaders(), params={"user_id":username})
     if r.status_code != 200:
         abort(500)
 
-def setRoomUsers(matrix_username, room_id, conversation_sid):
-    room_users = get_conversation_participants(matrix_username,conversation_sid)
-    for i in range(len(room_users)):
-        room_users[i] = getMatrixId(room_users[i])
+def setRoomUsers(matrix_id, room_id):
+    numbers = db.getNumbersForRoomId(matrix_id, room_id)
+    if numbers is None:
+        return
+    room_users = []
+    for number in  numbers:
+        room_users.append(getMatrixId(number))
     room_users.append(getBotMatrixId())
-    room_users.append(matrix_username)
+    room_users.append(matrix_id)
     username_set_goal = set(room_users)
 
     username_set_current = set()
@@ -190,6 +224,9 @@ def isTwilioBot(matrix_id):
 
 def isTwilioUser(matrix_id):
     return matrix_id.startswith("@"+ config["appservice"]["id"]) and not isTwilioBot(matrix_id)
+
+def getPhoneNumber(matrix_id):
+    return matrix_id.split(':')[0].removeprefix('@' + config["appservice"]["id"])
 
 def getMatrixId(phoneNumber):
     return "@" + config["appservice"]["id"] +  phoneNumber + ":" + getHomeserverDomain()

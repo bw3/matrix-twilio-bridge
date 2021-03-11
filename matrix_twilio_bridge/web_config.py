@@ -1,7 +1,7 @@
-import functools
+import functools,traceback
 
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, abort, jsonify
+    Blueprint, flash, g, redirect, render_template, request, session, url_for, abort, jsonify, make_response
 )
 
 import matrix_twilio_bridge.db
@@ -67,3 +67,15 @@ def incoming_number_save(auth_token, incoming_number):
     db.setIncomingNumberConfig(matrix_id, incoming_number, json)
     return {}
 
+@bp.route('/<auth_token>/create-conversation', methods=['POST'])
+def create_conversation(auth_token):
+    matrix_id = db.getMatrixIdFromAuthToken(auth_token)
+    if matrix_id is None:
+        abort(403)
+    twilio_client = util.getTwilioClient(matrix_id)
+    json = request.get_json()
+    from_number = json["from"]
+    to_numbers = json["to"]
+    numbers = to_numbers + [from_number]
+    util.createRoom(matrix_id,numbers)
+    return {}
