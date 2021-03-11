@@ -28,10 +28,6 @@ def matrix_event(txnId):
         sender = event["sender"]
         room_id = event["room_id"]
         if "state_key" in event:
-            try:
-                util.setRoomUsers(sender, room_id)
-            except:
-                traceback.print_exc()
             if event["type"] == "m.room.member" and event["content"]["membership"] == "invite":
                 username = event["state_key"]
                 if util.isTwilioUser(username) or util.isTwilioBot(username):

@@ -70,6 +70,8 @@ def findRoomId(matrix_id,numbers,conversation_sid=None):
     room_id = db.getRoomId(matrix_id,numbers)
     if room_id is None:
         room_id = createRoom(matrix_id,numbers)
+    else:
+        setRoomUsers(matrix_id, room_id)
     if conversation_sid is not None:
         db.setConversationSidForNumbers(matrix_id,conversation_sid,numbers)
     return room_id
