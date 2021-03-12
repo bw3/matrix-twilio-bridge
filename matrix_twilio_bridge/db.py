@@ -136,6 +136,12 @@ class DB:
         else:
             return result[0]
 
+    def getIncomingNumberConfigs(self, matrix_id):
+        cur = self._get_conn().cursor()
+        cur.execute('SELECT number,config FROM incoming_number WHERE matrix_id=?',(matrix_id,))
+        result = cur.fetchall()
+        return result
+
     def setIncomingNumberConfig(self, matrix_id, number, config):
         cur = self._get_conn().cursor()
         cur.execute('SELECT config FROM incoming_number WHERE matrix_id=? AND number=?',(matrix_id,number))

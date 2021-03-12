@@ -1,4 +1,4 @@
-import functools,traceback
+import functools, traceback, json
 
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for, abort, jsonify, make_response
@@ -75,4 +75,24 @@ def create_conversation(matrix_id):
     to_numbers = json["to"]
     numbers = to_numbers + [from_number]
     util.createRoom(matrix_id,numbers)
+    return {}
+
+@bp.route('/<auth_token>/forwarding-numbers/', methods=['GET'])
+@validate_request
+def forwarding_numbers(matrix_id):
+    config_pairs = db.getIncomingNumberConfigs(matrix_id)
+    resp = {}
+    for config_pair in config_pairs:
+        number = config_pair[0]
+        config = json.loads(config_pair[1])
+        resp[number] = config["hunt_numbers"]
+    return resp;
+
+@bp.route('/<auth_token>/make-call', methods=['POST'])
+@validate_request
+def make_call(matrix_id):
+    json = request.get_json()
+    twilio_client = util.getTwilioClient(matrix_id)
+    url = util.getAppserviceAddress() + '/twilio/dial-number/' + json['to']
+    twilio_client.calls.create( to=json['from'][0], send_digits=json['from'][1], from_=json['caller_id'], url=url)
     return {}

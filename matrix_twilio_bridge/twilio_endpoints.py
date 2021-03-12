@@ -132,9 +132,17 @@ def twilio_voicemail_transcription(matrix_id):
     util.sendMsgToRoom(room_id,author, request.values["TranscriptionText"])
     return {}
 
-
 @bp.route('/reject', methods=['POST'])
 def twilio_reject():
     response = VoiceResponse()
     response.reject()
+    return str(response)
+
+@bp.route('/dial-number/<number>', methods=['POST'])
+def twilio_dial_number(number):
+    response = VoiceResponse()
+    dial = Dial(answerOnBridge=True)
+    dial.number(number)
+    response.append(dial)
+    response.hangup()
     return str(response)

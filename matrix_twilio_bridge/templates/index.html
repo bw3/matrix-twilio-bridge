@@ -16,6 +16,8 @@
 <a v-on:click="loadIncomingNumbers" href="#">Incoming Numbers</a>
 <br/>
 <a v-on:click="loadCreateConversation" href="#">Create SMS Conversation</a>
+<br/>
+<a v-on:click="loadMakeCall" href="#">Make Call</a>
 </div>
 
 <div v-if="page === 'loading'">
@@ -84,6 +86,16 @@ NOTE: All calls will be rejected, since both forwarding and voicemail are disabl
 <a v-on:click="createConversation" href="#">Create</a>
 </div>
 
+<div v-if="page === 'make-call'">
+<table>
+<tr><td>Using Caller ID</td><td><select v-model="make_call.caller_id"><option v-for="number in incoming_numbers">{{ number }}</option></select></td></tr>
+<tr><td>Call me at</td><td><select v-model="make_call.from"><option v-for="number in forwarding_numbers[make_call.caller_id]">{{ number }}</option></select></td></tr>
+<tr><td>And connect to</td><td><input v-model="make_call.to" pattern="[+][0-9]+" placeholder="+15555555555" size="12"/></td></tr>
+</table>
+<hr/>
+<a v-on:click="makeCall" href="#">Make Call</a>
+</div>
+
 </div>
 <script>
 var app = new Vue({
@@ -93,7 +105,9 @@ var app = new Vue({
     incoming_numbers: [],
     incoming_number: {'data':{}},
     twilio_config: {},
-    create_conversation: {"from":"","to":[]}
+    create_conversation: {"from":"","to":[]},
+    make_call: {"from":"","to":"","caller_id":""},
+    forwarding_numbers: {}
   },
   methods: {
     loadTwilioConfig: function(event) {
@@ -226,6 +240,49 @@ var app = new Vue({
           'Content-Type': 'application/json;charset=utf-8'
         },
         body: JSON.stringify(this.create_conversation)
+      })
+      .then( response => {
+        if (!response.ok) {
+            throw new Error('Server responding with '+response.status + ' ' + response.statusText);
+        }
+        this.page = 'home';
+      })
+      .catch( error => {
+          this.error_msg = error;
+          this.page = 'error';
+      })
+    },
+    loadMakeCall: function() {
+        this.page = 'loading'
+        fetch(window.location.origin + window.location.pathname + 'forwarding-numbers/')
+        .then( response => {
+            if (!response.ok) {
+                throw new Error('Server responding with '+response.status + ' ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then( data => {
+            this.forwarding_numbers = data;
+            this.incoming_numbers = Object.keys(data);
+            this.page = 'make-call';
+            this.make_call.caller_id = this.incoming_numbers[0]
+            this.make_call.to = "";
+            this.make_call.from = this.forwarding_numbers[this.make_call.caller_id];
+        })
+        .catch( error => {
+            this.error_msg = error;
+            this.page = 'error';
+        })
+    },
+    makeCall: function() {
+      this.page = 'loading'
+      this.make_call.from = JSON.parse(this.make_call.from);
+      fetch(window.location.origin + window.location.pathname + 'make-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8'
+        },
+        body: JSON.stringify(this.make_call)
       })
       .then( response => {
         if (!response.ok) {
