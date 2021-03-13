@@ -23,7 +23,7 @@ def validate_twilio_request(f):
         (matrix_id,auth) = db.getMatrixIdAuthFromSid(request.form["AccountSid"])
         validator = RequestValidator(auth)
         request_valid = validator.validate( request.url, request.form, request.headers.get('X-TWILIO-SIGNATURE', ''))
-        if request_valid:
+        if request_valid and util.isMatrixIdAllowed(matrix_id):
             return f(matrix_id, *args, **kwargs)
         else:
             return abort(403)

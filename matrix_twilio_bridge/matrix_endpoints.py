@@ -41,10 +41,12 @@ def matrix_event(txnId):
                 room_contains_phone = True
             if util.isTwilioBot(member):
                 room_contains_bot = True
+        if util.isTwilioUser(sender) or util.isTwilioBot(sender):
+            return {}
         if room_contains_phone:
-            if util.isTwilioUser(sender) or util.isTwilioBot(sender):
-                return {}
             try:
+                if not util.isMatrixIdAllowed(sender):
+                    raise Exception('You are not allowed access to the bridge. ')
                 twilio_auth = db.getTwilioAuthPair(sender)
                 (conversation, twilio_author) = util.findConversationAndAuthor(sender,room_id)
                 if event["type"] == "m.room.message":
@@ -75,6 +77,8 @@ def matrix_event(txnId):
         elif room_contains_bot:
             if event["type"] == "m.room.message":
                 if event["content"].get("msgtype","") == "m.text":
+                    if not util.isMatrixIdAllowed(sender):
+                        util.sendMsgToRoom(room_id, util.getBotMatrixId() , 'You are not allowed access to the bridge. ')
                     text = event["content"]["body"]
                     if text == "!config":
                         config_url = util.getAppserviceAddress() + "/config/" + db.updateAuthToken(sender) + "/"
@@ -91,18 +95,4 @@ def matrix_user_exists(userId):
     r = requests.post(util.getHomeserverAddress() + '/_matrix/client/r0/register', headers = util.getMatrixHeaders(), json = user_data, params={"user_id":util.getBotMatrixId()})
     if r.status_code != 200:
         abort(500)
-    return {}
-
-@bp.route('/app/v1/rooms/<roomAlias>', methods=['GET'])
-def matrix_room_exists(roomAlias):
-    confirm_auth(request)
-    room_data = {
-        "preset": "private_chat",
-        "room_alias_name": roomAlias.split(':')[0].removeprefix('#'),
-    }
-    r = requests.post(util.getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = util.getMatrixHeaders(), json = room_data)
-    if r.status_code != 200:
-        abort(500)
-    room_id = r.json()['room_id']
-    r = requests.post(util.getHomeserverAddress() + '/_matrix/client/r0/rooms/'+ room_id + '/join', headers = util.getMatrixHeaders())
     return {}

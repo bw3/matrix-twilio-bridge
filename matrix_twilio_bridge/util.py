@@ -7,7 +7,7 @@ from twilio.rest import Client as TwilioClient
 import matrix_twilio_bridge.db 
 
 db = matrix_twilio_bridge.db.db
-config = configparser.ConfigParser()
+config = configparser.ConfigParser(allow_no_value=True,delimiters=('=',))
 config.read('config')
 
 def validateNumbers(matrix_id,numbers):
@@ -218,6 +218,17 @@ def getAppserviceHsToken():
 def getAppserviceAddress():
     return config["appservice"]["address"]
 
+def isMatrixIdAllowed(matrix_id):
+    for permission in config["permissions"].keys():
+        if permission == '*':
+            return True
+        elif permission.startswith('@'):
+            if permission == matrix_id:
+                return True
+        elif permission == matrix_id.split(':',maxsplit=1)[1]:
+            return True
+    return False
+
 def getMatrixHeaders():
     return {"Authorization":"Bearer "+getAppserviceAsToken()}
 
@@ -225,7 +236,7 @@ def isTwilioBot(matrix_id):
     return matrix_id == getBotMatrixId()
 
 def isTwilioUser(matrix_id):
-    return matrix_id.startswith("@"+ config["appservice"]["id"]) and not isTwilioBot(matrix_id)
+    return matrix_id.startswith("@"+ config["appservice"]["id"]) and matrix_id.endswith(getHomeserverDomain()) and not isTwilioBot(matrix_id)
 
 def getPhoneNumber(matrix_id):
     return matrix_id.split(':')[0].removeprefix('@' + config["appservice"]["id"])

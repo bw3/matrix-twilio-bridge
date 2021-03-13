@@ -16,6 +16,8 @@ def validate_request(f):
         matrix_id = db.getMatrixIdFromAuthToken(kwargs['auth_token'])
         if matrix_id is None:
             abort(403)
+        if not util.isMatrixIdAllowed(matrix_id):
+            abort(403)
         del kwargs['auth_token']
         return f(matrix_id, *args, **kwargs)
     return decorated_function
