@@ -22,6 +22,7 @@ class DB:
         cur.execute('CREATE TABLE IF NOT EXISTS web_config_auth (matrix_id text UNIQUE, auth_token text UNIQUE)')
         cur.execute('CREATE TABLE IF NOT EXISTS twilio_config (matrix_id text UNIQUE, sid text, auth text)')
         cur.execute('CREATE TABLE IF NOT EXISTS incoming_number (matrix_id text, number text, config text, CONSTRAINT unique_incoming_number UNIQUE(matrix_id, number))')
+        cur.execute('CREATE TABLE IF NOT EXISTS bot_room (matrix_id text UNIQUE NOT NULL, room_id text UNIQUE NOT NULL)')
         self._get_conn().commit()
 
     def _get_conn(self):
@@ -150,6 +151,25 @@ class DB:
             cur.execute('INSERT INTO incoming_number (matrix_id,number,config) VALUES(?,?,?)',(matrix_id,number,config))
         else:
             cur.execute('UPDATE incoming_number SET config=? WHERE matrix_id=? AND number=?', (config,matrix_id,number))
+        self._get_conn().commit()
+
+    def getBotRoom(self, matrix_id):
+        cur = self._get_conn().cursor()
+        cur.execute('SELECT room_id FROM bot_room WHERE matrix_id=?',(matrix_id,))
+        result = cur.fetchone()
+        if result is None:
+            return result
+        else:
+            return result[0]
+
+    def setBotRoom(self, matrix_id, room_id):
+        cur = self._get_conn().cursor()
+        cur.execute('SELECT room_id FROM bot_room WHERE matrix_id=?',(matrix_id,))
+        result = cur.fetchone()
+        if result is None:
+            cur.execute('INSERT INTO bot_room (matrix_id,room_id) VALUES(?,?)',(matrix_id,room_id))
+        else:
+            cur.execute('UPDATE bot_room SET room_id=? WHERE matrix_id=?', (room_id,matrix_id))
         self._get_conn().commit()
 
 db=DB()

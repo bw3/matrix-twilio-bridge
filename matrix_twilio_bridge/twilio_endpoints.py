@@ -1,4 +1,4 @@
-import os,json,urllib,uuid,sqlite3,functools
+import os,json,urllib,uuid,sqlite3,functools,traceback
 
 from flask import (
     Flask, render_template, request, abort, redirect, Blueprint, flash, g, redirect, render_template, request, session, url_for, abort
@@ -24,7 +24,12 @@ def validate_twilio_request(f):
         validator = RequestValidator(auth)
         request_valid = validator.validate( request.url, request.form, request.headers.get('X-TWILIO-SIGNATURE', ''))
         if request_valid and util.isMatrixIdAllowed(matrix_id):
-            return f(matrix_id, *args, **kwargs)
+            try:
+                return f(matrix_id, *args, **kwargs)
+            except:
+                error_msg = str(request) + '\n' + str(request.headers) + '\n' + traceback.format_exc()
+                util.sendNoticeToRoom(db.getBotRoom(matrix_id), util.getBotMatrixId(), error_msg)
+                abort(500)
         else:
             return abort(403)
     return decorated_function

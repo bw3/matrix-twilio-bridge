@@ -70,7 +70,7 @@ def matrix_event(txnId):
                 exc1 = traceback.format_exc()
                 try:
                     util.addUserToRoom(room_id, util.getBotMatrixId())
-                    util.sendMsgToRoom(room_id, util.getBotMatrixId(), traceback.format_exc())
+                    util.sendNoticeToRoom(room_id, util.getBotMatrixId(), traceback.format_exc())
                 except:
                     print(exc1)
                     traceback.print_exc()
@@ -78,11 +78,13 @@ def matrix_event(txnId):
             if event["type"] == "m.room.message":
                 if event["content"].get("msgtype","") == "m.text":
                     if not util.isMatrixIdAllowed(sender):
-                        util.sendMsgToRoom(room_id, util.getBotMatrixId() , 'You are not allowed access to the bridge. ')
+                        util.sendNoticeToRoom(room_id, util.getBotMatrixId() , 'You are not allowed access to the bridge. ')
+                        return {}
+                    db.setBotRoom(sender, room_id)
                     text = event["content"]["body"]
                     if text == "!config":
                         config_url = util.getAppserviceAddress() + "/config/" + db.updateAuthToken(sender) + "/"
-                        util.sendMsgToRoom(room_id, util.getBotMatrixId() , config_url)
+                        util.sendNoticeToRoom(room_id, util.getBotMatrixId() , config_url)
             
     return {}
 

@@ -146,11 +146,17 @@ def setRoomUsers(matrix_id, room_id):
 
     r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())
 
-def sendMsgToRoom(room_id, username, text):
+def sendNoticeToRoom(room_id, username, text):
+    sendMsgToRoom(room_id, username, text, True)
+
+def sendMsgToRoom(room_id, username, text, notice=False):
     msg_data = {
-        "msgtype": "m.text",
         "body": text
     }
+    if notice:
+        msg_data["msgtype"] = "m.notice"
+    else:
+        msg_data["msgtype"] = "m.text"
     r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id + '/send/m.room.message/'+str(uuid.uuid4()), headers = getMatrixHeaders(), json = msg_data, params={"user_id":username} )
 
 def postFileToRoom(room_id, username, mimetype, data, filename):
