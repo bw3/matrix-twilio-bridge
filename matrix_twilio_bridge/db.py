@@ -8,22 +8,66 @@ class DB:
 
     def __init__(self):
         self.thread_local = threading.local()
+
+    def getDbVersion(self):
         cur = self._get_conn().cursor()
-        cur.execute("""
+        cur.execute("SELECT version FROM db_version")
+        result = cur.fetchone()
+        if result is None:
+            return 0
+        else:
+            return result[0]
+
+    def migrate(self):
+        cur = self._get_conn().cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS db_version(version INTEGER)")
+        self._get_conn().commit()
+        version = self.getDbVersion()
+        if version == 1:
+            print('Database already migrated to latest version.')
+            return
+        print('Starting version : ' + str(version))
+        if version == 0:
+            print('Migrating to :     1')
+            queries = """
             CREATE TABLE IF NOT EXISTS room_numbers (
-                matrix_id text NOT NULL, 
-                room_id text UNIQUE NOT NULL, 
-                conversation_sid text, 
+                matrix_id text NOT NULL,
+                room_id text UNIQUE NOT NULL,
+                conversation_sid text,
                 numbers text NOT NULL,
                 CONSTRAINT unique_room_numbers UNIQUE(matrix_id, numbers)
-            )
-
-        """)
-        cur.execute('CREATE TABLE IF NOT EXISTS web_config_auth (matrix_id text UNIQUE, auth_token text UNIQUE)')
-        cur.execute('CREATE TABLE IF NOT EXISTS twilio_config (matrix_id text UNIQUE, sid text, auth text)')
-        cur.execute('CREATE TABLE IF NOT EXISTS incoming_number (matrix_id text, number text, config text, CONSTRAINT unique_incoming_number UNIQUE(matrix_id, number))')
-        cur.execute('CREATE TABLE IF NOT EXISTS bot_room (matrix_id text UNIQUE NOT NULL, room_id text UNIQUE NOT NULL)')
-        self._get_conn().commit()
+            );
+            CREATE TABLE IF NOT EXISTS web_config_auth (
+                matrix_id text UNIQUE NOT NULL,
+                auth_token text UNIQUE NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS twilio_config (
+                matrix_id text UNIQUE,
+                sid text,
+                auth text
+            );
+            CREATE TABLE IF NOT EXISTS incoming_number (
+                matrix_id text NOT NULL,
+                number text NOT NULL,
+                config text NOT NULL,
+                CONSTRAINT unique_incoming_number UNIQUE(matrix_id, number)
+            );
+            CREATE TABLE IF NOT EXISTS bot_room (
+                matrix_id text UNIQUE NOT NULL,
+                room_id text UNIQUE NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS phone_number_id (
+                matrix_id text NOT NULL,
+                number text NOT NULL,
+                id text UNQIUE NOT NULL
+            );
+            INSERT INTO db_version (version) VALUES (1);
+            """
+            for query in queries.split(';'):
+                cur.execute(query)
+            self._get_conn().commit()
+        version = self.getDbVersion()
+        print('Final version :    ' + str(version))
 
     def _get_conn(self):
         if not hasattr(self.thread_local, 'conn'):

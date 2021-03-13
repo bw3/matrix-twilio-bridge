@@ -1,0 +1,13 @@
+import os,json,urllib,uuid,sqlite3, sys
+
+import matrix_twilio_bridge.db
+
+try:
+    cmd = sys.argv[1]
+except:
+    cmd = ''
+if cmd == 'migrate':
+    matrix_twilio_bridge.db.db.migrate()
+else:
+    print('Usage: {0} <command>'.format(sys.argv[0]))
+    print('migrate')
