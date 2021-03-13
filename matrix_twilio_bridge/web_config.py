@@ -93,6 +93,11 @@ def forwarding_numbers(matrix_id):
 def make_call(matrix_id):
     json = request.get_json()
     twilio_client = util.getTwilioClient(matrix_id)
-    url = util.getAppserviceAddress() + '/twilio/dial-number/' + json['to']
+    if json['from'][2] == "":
+        url = util.getAppserviceAddress() + '/twilio/dial-number/' + json['to']
+    elif json['from'][2] == "key":
+        url = util.getAppserviceAddress() + '/twilio/check-key-dial-number/' + json['to']
+    elif json['from'][2] == "speech":
+        url = util.getAppserviceAddress() + '/twilio/check-speech-dial-number/' + json['to']
     twilio_client.calls.create( to=json['from'][0], send_digits=json['from'][1], from_=json['caller_id'], url=url)
     return {}

@@ -6,7 +6,7 @@ from flask import (
 
 import requests
 from twilio.rest import Client as TwilioClient
-from twilio.twiml.voice_response import Dial, VoiceResponse, Say
+from twilio.twiml.voice_response import Dial, VoiceResponse, Say, Gather
 from twilio.request_validator import RequestValidator
 
 import matrix_twilio_bridge.db
@@ -65,7 +65,13 @@ def twilio_call(matrix_id):
         if json_config["hunt_enabled"]:
             dial = Dial(action = util.adjustUrl(request.url,"voicemail"),timeout=json_config["hunt_timeout"],answerOnBridge=True)
             for pair in json_config["hunt_numbers"]:
-                dial.number(pair[0], send_digits=pair[1])
+                if pair[2] == "":
+                    url = util.getAppserviceAddress() + "/twilio/check-accept"
+                elif pair[2] == "key":
+                    url = util.getAppserviceAddress() + "/twilio/check-key"
+                elif pair[2] == "speech":
+                    url = util.getAppserviceAddress() + "/twilio/check-speech"
+                dial.number(pair[0], send_digits=pair[1], url=url)
             response.append(dial)
         else:
             return twilio_voicemail()
@@ -138,8 +144,52 @@ def twilio_reject():
     response.reject()
     return str(response)
 
+def check_human_key(url):
+    response = VoiceResponse()
+    gather = Gather(input='dtmf', timeout=10, num_digits=1, action=url)
+    gather.say('To accept this call, press any key. '*3)
+    response.append(gather)
+    response.hangup()
+    return str(response)
+
+def check_human_speech(url):
+    response = VoiceResponse()
+    gather = Gather(input='speech dtmf', timeout=10, speechTimeout=1, num_digits=1, action=url, hints='accept')
+    gather.say('To accept this call, press any key or say accept. '*3)
+    response.append(gather)
+    response.hangup()
+    return str(response)
+
+
+@bp.route('/check-key-dial-number/<number>', methods=['POST'])
+def twilio_check_key_dial_number(number):
+    return check_human_key(util.getAppserviceAddress() + "/twilio/dial-number/" + number)
+
+@bp.route('/check-speech-dial-number/<number>', methods=['POST'])
+def twilio_check_speech_dial_number(number):
+    return check_human_speech(util.getAppserviceAddress() + "/twilio/dial-number/" + number)
+
+@bp.route('/check-key', methods=['POST'])
+def twilio_check_key():
+    return check_human_key(util.getAppserviceAddress() + "/twilio/check-accept")
+
+@bp.route('/check-speech', methods=['POST'])
+def twilio_check_speech():
+    return check_human_speech(util.getAppserviceAddress() + "/twilio/check-accept")
+
+@bp.route('/check-accept', methods=['POST'])
+def twilio_check_accept():
+    response = VoiceResponse()
+    if not "accept" in request.values.get("SpeechResult","accept"):
+        response.hangup()
+    return str(response)
+
 @bp.route('/dial-number/<number>', methods=['POST'])
 def twilio_dial_number(number):
+    if not "accept" in request.values.get("SpeechResult","accept"):
+        response = VoiceResponse()
+        response.reject()
+        return str(response)
     response = VoiceResponse()
     dial = Dial(answerOnBridge=True)
     dial.number(number)

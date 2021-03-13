@@ -50,10 +50,11 @@ Error:
 <br/>
 <label for="hunt_timeout">Ringing Time Limit (seconds)</label><input v-model="incoming_number.data.hunt_timeout" id="hunt_timeout" size="3"/>
 <table>
-<tr><td>Number</td><td>Extension</td></tr>
+<tr><td>Number</td><td>Ext</td><td>Check</td></tr>
 <tr v-for="(entry,index) in incoming_number.data.hunt_numbers">
     <td><input v-model="entry[0]" pattern="[+][0-9]+" placeholder="+15555555555" size="12"/></td>
-    <td><input v-model="entry[1]" size="5"/></td>
+    <td><input v-model="entry[1]" size="4"/></td>
+    <td><select v-model="entry[2]"><option value="">None</option><option value="key">Any Key</option><option value="speech">Speech</option></select>
     <td><a v-on:click="removeHuntNumber(index)" href="#">Remove</a></td></tr>
 </table>
 <a v-on:click="addHuntNumber" href="#">Add</a>
@@ -186,7 +187,7 @@ var app = new Vue({
         })
     },
     addHuntNumber: function() {
-        this.incoming_number.data.hunt_numbers.push(["",""]);
+        this.incoming_number.data.hunt_numbers.push(["","","key"]);
     },
     removeHuntNumber: function(index) {
         this.incoming_number.data.hunt_numbers.splice(index,1);
