@@ -59,7 +59,7 @@ class DB:
             CREATE TABLE IF NOT EXISTS phone_number_id (
                 matrix_id text NOT NULL,
                 number text NOT NULL,
-                id text UNQIUE NOT NULL
+                id text UNIQUE NOT NULL
             );
             INSERT INTO db_version (version) VALUES (1);
             """
@@ -214,6 +214,31 @@ class DB:
             cur.execute('INSERT INTO bot_room (matrix_id,room_id) VALUES(?,?)',(matrix_id,room_id))
         else:
             cur.execute('UPDATE bot_room SET room_id=? WHERE matrix_id=?', (room_id,matrix_id))
+        self._get_conn().commit()
+
+    def getIdForPhoneNumber(self, matrix_id, number):
+        cur = self._get_conn().cursor()
+        cur.execute('SELECT id FROM phone_number_id WHERE matrix_id=? AND number=?',(matrix_id,number))
+        result = cur.fetchone()
+        if result is None:
+            return result
+        else:
+            return result[0]
+
+    def getPhoneNumberForId(self, matrix_id, id_):
+        cur = self._get_conn().cursor()
+        cur.execute('SELECT number FROM phone_number_id WHERE matrix_id=? AND id=?',(matrix_id,id_))
+        result = cur.fetchone()
+        if result is None:
+            return result
+        else:
+            return result[0]
+
+    def generateIdForPhoneNumber(self, matrix_id, number):
+        alphabet = string.ascii_letters + string.digits
+        id_ = ''.join(secrets.choice(alphabet) for i in range(32))
+        cur = self._get_conn().cursor()
+        cur.execute('INSERT INTO phone_number_id (matrix_id,number,id) VALUES(?,?,?)',(matrix_id,number,id_))
         self._get_conn().commit()
 
 db=DB()

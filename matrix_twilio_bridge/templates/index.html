@@ -18,6 +18,8 @@
 <a v-on:click="loadCreateConversation" href="#">Create SMS Conversation</a>
 <br/>
 <a v-on:click="loadMakeCall" href="#">Make Call</a>
+<br/>
+<a v-on:click="loadSetDisplayName" href="#">Set Display Name</a>
 </div>
 
 <div v-if="page === 'loading'">
@@ -97,6 +99,14 @@ NOTE: All calls will be rejected, since both forwarding and voicemail are disabl
 <a v-on:click="makeCall" href="#">Make Call</a>
 </div>
 
+<div v-if="page === 'set-display-name'">
+<input v-model="display_name.number" pattern="[+][0-9]+" placeholder="+15555555555"/>
+<br/>
+<input v-model="display_name.value" placeholder="Display Name"/>
+<hr/>
+<a v-on:click="setDisplayName" href="#">Set Display Name</a>
+</div>
+
 </div>
 <script>
 var app = new Vue({
@@ -108,7 +118,8 @@ var app = new Vue({
     twilio_config: {},
     create_conversation: {"from":"","to":[]},
     make_call: {"from":"","to":"","caller_id":""},
-    forwarding_numbers: {}
+    forwarding_numbers: {},
+    display_name: {"number":"","value":""}
   },
   methods: {
     loadTwilioConfig: function(event) {
@@ -294,7 +305,30 @@ var app = new Vue({
           this.error_msg = error;
           this.page = 'error';
       })
-    }
+    },
+    loadSetDisplayName: function() {
+        this.page = 'set-display-name';
+    },
+    setDisplayName: function() {
+      this.page = 'loading'
+      fetch(window.location.origin + window.location.pathname + 'set-display-name', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8'
+        },
+        body: JSON.stringify(this.display_name)
+      })
+      .then( response => {
+        if (!response.ok) {
+            throw new Error('Server responding with '+response.status + ' ' + response.statusText);
+        }
+        this.page = 'home';
+      })
+      .catch( error => {
+          this.error_msg = error;
+          this.page = 'error';
+      })
+    },
   }
 })
 </script>

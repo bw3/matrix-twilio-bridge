@@ -37,7 +37,7 @@ def validate_twilio_request(f):
 @bp.route('/conversation', methods=['POST'])
 @validate_twilio_request
 def twilio_msg_recieved(matrix_id):
-    author = util.getMatrixId(request.form['Author'])
+    author = util.getMatrixId(matrix_id,request.form['Author'])
     conversation_sid = request.form['ConversationSid']
     numbers = util.get_conversation_participants(matrix_id,conversation_sid)
     room_id = util.findRoomId(matrix_id,numbers,conversation_sid)

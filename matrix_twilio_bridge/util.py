@@ -41,7 +41,7 @@ def findConversationAndAuthor(matrix_id,room_id):
     numbers = set()
     for mid in get_room_members(room_id):
         if isTwilioUser(mid):
-            numbers.add(getPhoneNumber(mid))
+            numbers.add(getPhoneNumber(matrix_id,mid))
     twilio_client = getTwilioClient(matrix_id)
     db.setRoomForNumbers(matrix_id,room_id,numbers)
     conversation_sid = db.getConversationSid(matrix_id,numbers)
@@ -104,15 +104,29 @@ def get_room_members(room_id):
     r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())
     return r.json()['joined'].keys()
 
-def addUserToRoom(room_id, username) :
-    user_data = { 
-        "username": username.split(':')[0].removeprefix('@')
-    }
-    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/register', headers = getMatrixHeaders(), json = user_data)
+def createUser(username, displayname=None, force_displayname=False):
+    r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/profile/' + username  + '/displayname', headers = getMatrixHeaders())
+    exists = r.status_code != 404
+    if not exists:
+        user_data = {
+            "username": username.split(':')[0].removeprefix('@')
+        }
+        r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/register', headers = getMatrixHeaders(), json = user_data)
+    if force_displayname or (not exists and not displayname is None):
+            json_body = {"displayname":displayname}
+            r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/profile/' + username  + '/displayname', headers = getMatrixHeaders(), json = json_body, params={"user_id":username})
+
+def setDisplayName(matrix_id_human, phone_number, displayname):
+    matrix_id_phone = getMatrixId(matrix_id_human, phone_number)
+    createUser(matrix_id_phone, displayname, True)
+
+def addUserToRoom(room_id, username, displayname=None):
+    createUser(username, displayname)
     invite_data = {
         "user_id": username
     }
     r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/invite', headers = getMatrixHeaders(), json = invite_data)
+    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/join', headers = getMatrixHeaders(), params={"user_id":username})
 
 def removeUserFromRoom(room_id, username):
     r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+room_id+'/leave', headers = getMatrixHeaders(), params={"user_id":username})
@@ -125,7 +139,7 @@ def setRoomUsers(matrix_id, room_id):
         return
     room_users = []
     for number in  numbers:
-        room_users.append(getMatrixId(number))
+        room_users.append(getMatrixId(matrix_id, number))
     room_users.append(getBotMatrixId())
     room_users.append(matrix_id)
     username_set_goal = set(room_users)
@@ -142,7 +156,11 @@ def setRoomUsers(matrix_id, room_id):
 
     for username in username_set_goal:
         if username not in username_set_current:
-            addUserToRoom(room_id,username)
+            if isTwilioUser(username):
+                displayname = getPhoneNumber(matrix_id,username)
+            else:
+                displayname = None
+            addUserToRoom(room_id,username, displayname)
 
     r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())
 
@@ -244,11 +262,16 @@ def isTwilioBot(matrix_id):
 def isTwilioUser(matrix_id):
     return matrix_id.startswith("@"+ config["appservice"]["id"]) and matrix_id.endswith(getHomeserverDomain()) and not isTwilioBot(matrix_id)
 
-def getPhoneNumber(matrix_id):
-    return matrix_id.split(':')[0].removeprefix('@' + config["appservice"]["id"])
+def getPhoneNumber(matrix_id_human, matrix_id_phone):
+    id_ = matrix_id_phone.split(':')[0].removeprefix('@' + config["appservice"]["id"])
+    return db.getPhoneNumberForId(matrix_id_human, id_)
 
-def getMatrixId(phoneNumber):
-    return "@" + config["appservice"]["id"] +  phoneNumber + ":" + getHomeserverDomain()
+def getMatrixId(matrix_id, phone_number):
+    id_ = db.getIdForPhoneNumber(matrix_id, phone_number)
+    if id_ is None:
+        db.generateIdForPhoneNumber(matrix_id, phone_number)
+        id_ = db.getIdForPhoneNumber(matrix_id, phone_number)
+    return "@" + config["appservice"]["id"] + id_ + ":" + getHomeserverDomain()
 
 def getBotMatrixId():
     return "@" + config["appservice"]["bot_username"] + ":" + getHomeserverDomain()

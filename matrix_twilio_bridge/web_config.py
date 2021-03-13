@@ -103,3 +103,10 @@ def make_call(matrix_id):
         url = util.getAppserviceAddress() + '/twilio/check-speech-dial-number/' + json['to']
     twilio_client.calls.create( to=json['from'][0], send_digits=json['from'][1], from_=json['caller_id'], url=url)
     return {}
+
+@bp.route('/<auth_token>/set-display-name', methods=['POST'])
+@validate_request
+def set_display_name(matrix_id):
+    json = request.get_json()
+    util.setDisplayName(matrix_id, json['number'], json['value'] + " ({0})".format(json['number']))
+    return {}
