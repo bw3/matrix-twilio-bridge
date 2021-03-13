@@ -82,9 +82,13 @@ def matrix_event(txnId):
                         return {}
                     db.setBotRoom(sender, room_id)
                     text = event["content"]["body"]
-                    if text == "!config":
+                    if text == "config" or text == "!config":
                         config_url = util.getAppserviceAddress() + "/config/" + db.updateAuthToken(sender) + "/"
                         util.sendNoticeToRoom(room_id, util.getBotMatrixId() , config_url)
+                    else:
+                        util.sendNoticeToRoom(room_id, util.getBotMatrixId() , 
+                        """config: Get a url for web config interface
+                        """)
             
     return {}
 
