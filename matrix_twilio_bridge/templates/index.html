@@ -90,7 +90,7 @@ NOTE: All calls will be rejected, since both forwarding and voicemail are disabl
 <div v-if="page === 'make-call'">
 <table>
 <tr><td>Using Caller ID</td><td><select v-model="make_call.caller_id"><option v-for="number in incoming_numbers">{{ number }}</option></select></td></tr>
-<tr><td>Call me at</td><td><select v-model="make_call.from"><option v-for="number in forwarding_numbers[make_call.caller_id]">{{ number }}</option></select></td></tr>
+<tr><td>Call me at</td><td><select v-model="make_call.from"><option v-for="entry in forwarding_numbers[make_call.caller_id]" v-bind:value="entry">{{ entry[0] }} {{ entry[1] }}</option></select></td></tr>
 <tr><td>And connect to</td><td><input v-model="make_call.to" pattern="[+][0-9]+" placeholder="+15555555555" size="12"/></td></tr>
 </table>
 <hr/>
@@ -268,7 +268,7 @@ var app = new Vue({
             this.page = 'make-call';
             this.make_call.caller_id = this.incoming_numbers[0]
             this.make_call.to = "";
-            this.make_call.from = this.forwarding_numbers[this.make_call.caller_id];
+            this.make_call.from = "";
         })
         .catch( error => {
             this.error_msg = error;
@@ -277,7 +277,6 @@ var app = new Vue({
     },
     makeCall: function() {
       this.page = 'loading'
-      this.make_call.from = JSON.parse(this.make_call.from);
       fetch(window.location.origin + window.location.pathname + 'make-call', {
         method: 'POST',
         headers: {
