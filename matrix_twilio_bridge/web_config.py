@@ -26,7 +26,7 @@ def validate_request(f):
 @bp.route('/<auth_token>/', methods=['GET'])
 @validate_request
 def index(matrix_id):
-    with bp.open_resource('templates/index.html') as file:
+    with bp.open_resource('static/index.html') as file:
         return file.read()
 
 @bp.route('/<auth_token>/twilio-config/', methods=['GET'])

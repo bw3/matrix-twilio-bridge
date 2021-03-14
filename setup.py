@@ -19,7 +19,7 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     package_data = {
-        'matrix_twilio_bridge': ['templates/*.html'],
+        'matrix_twilio_bridge': ['static/*'],
     },
     scripts = ["scripts/matrix-twilio-bridge"],
     install_requires=["flask", "requests", "twilio", "gunicorn"]
