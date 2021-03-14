@@ -28,10 +28,16 @@ def validateNumbers(matrix_id,numbers):
     return (twilio_number, list(numbers))
 
 def createRoom(matrix_id,numbers):
+    json = {
+        "preset": "private_chat"
+    }
     twilio_client = getTwilioClient(matrix_id)
-    validateNumbers(matrix_id,numbers)
     is_direct = len(numbers) == 2
-    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = getMatrixHeaders(), json = { "preset": "private_chat", "is_direct":is_direct})
+    (twilio_number, non_twilio_numbers) = validateNumbers(matrix_id,numbers)
+    if is_direct:
+        json["is_direct"] = True
+        json["invite"] = [matrix_id, getMatrixId(matrix_id,non_twilio_numbers[0])]
+    r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = getMatrixHeaders(), json=json)
     room_id = r.json()['room_id']
     db.setRoomForNumbers(matrix_id, room_id, numbers)
     setRoomUsers(matrix_id, room_id)
@@ -145,10 +151,11 @@ def setRoomUsers(matrix_id, room_id):
     username_set_goal = set(room_users)
 
     username_set_current = set()
-    r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())#, params={"user_id":"twilio_bot"})
+    r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/members', headers = getMatrixHeaders())
 
-    for username in r.json()['joined'].keys():
-        username_set_current.add(username)
+    for record in r.json()['chunk']:
+        if record["content"]["membership"] in ["join","invite"]:
+            username_set_current.add(record["state_key"])
 
     for username in username_set_current:
         if username not in username_set_goal:
