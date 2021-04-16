@@ -61,6 +61,12 @@ class DB:
                 number text NOT NULL,
                 id text UNIQUE NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS display_name (
+                matrix_id text NOT NULL,
+                number text NOT NULL,
+                display_name text NOT NULL,
+                CONSTRAINT unique_display_name UNIQUE(matrix_id, number)
+            );
             INSERT INTO db_version (version) VALUES (1);
             """
             for query in queries.split(';'):
@@ -240,5 +246,27 @@ class DB:
         cur = self._get_conn().cursor()
         cur.execute('INSERT INTO phone_number_id (matrix_id,number,id) VALUES(?,?,?)',(matrix_id,number,id_))
         self._get_conn().commit()
+
+    def setDisplayName(self, matrix_id, number, display_name):
+        cur = self._get_conn().cursor()
+        if display_name is None:
+            cur.execute('DELETE FROM display_name WHERE matrix_id=? AND number=?', (matrix_id,number))
+        else:
+            cur.execute('SELECT display_name FROM display_name WHERE matrix_id=? AND number=?',(matrix_id,number))
+            result = cur.fetchone()
+            if result is None:
+                cur.execute('INSERT INTO display_name (matrix_id,number,display_name) VALUES(?,?,?)',(matrix_id,number,display_name))
+            else:
+                cur.execute('UPDATE display_name SET display_name=? WHERE matrix_id=? AND number=?', (display_name,matrix_id,number))
+        self._get_conn().commit()
+
+    def getDisplayName(self, matrix_id, number):
+        cur = self._get_conn().cursor()
+        cur.execute('SELECT display_name FROM display_name WHERE matrix_id=? AND number=?',(matrix_id,number))
+        result = cur.fetchone()
+        if result is None:
+            return result
+        else:
+            return result[0]
 
 db=DB()

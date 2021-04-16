@@ -108,5 +108,5 @@ def make_call(matrix_id):
 @validate_request
 def set_display_name(matrix_id):
     json = request.get_json()
-    util.setDisplayName(matrix_id, json['number'], json['value'] + " ({0})".format(json['number']))
+    util.setDisplayName(matrix_id, json['number'], json['value'])
     return {}

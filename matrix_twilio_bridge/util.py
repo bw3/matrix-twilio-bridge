@@ -110,7 +110,7 @@ def get_room_members(room_id):
     r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id  + '/joined_members', headers = getMatrixHeaders())
     return r.json()['joined'].keys()
 
-def createUser(username, displayname=None, force_displayname=False):
+def createUser(username, displayname):
     r = requests.get(getHomeserverAddress() + '/_matrix/client/r0/profile/' + username  + '/displayname', headers = getMatrixHeaders())
     exists = r.status_code != 404
     if not exists:
@@ -118,13 +118,26 @@ def createUser(username, displayname=None, force_displayname=False):
             "username": username.split(':')[0].removeprefix('@')
         }
         r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/register', headers = getMatrixHeaders(), json = user_data)
-    if force_displayname or (not exists and not displayname is None):
-            json_body = {"displayname":displayname}
-            r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/profile/' + username  + '/displayname', headers = getMatrixHeaders(), json = json_body, params={"user_id":username})
+        r.json()
+    if displayname is not None:
+        json_body = {"displayname":displayname}
+        r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/profile/' + username  + '/displayname', headers = getMatrixHeaders(), json = json_body, params={"user_id":username})
+        r.json()
 
 def setDisplayName(matrix_id_human, phone_number, displayname):
-    matrix_id_phone = getMatrixId(matrix_id_human, phone_number)
-    createUser(matrix_id_phone, displayname, True)
+    if displayname == '':
+        displayname = None
+    db.setDisplayName(matrix_id_human, phone_number, displayname)
+    id_ = db.getIdForPhoneNumber(matrix_id_human, phone_number)
+    if id_ is None:
+        return
+    matrix_id_phone = "@" + config["appservice"]["id"] + id_ + ":" + getHomeserverDomain()
+    if displayname is None:
+        displayname = phone_number
+    else:
+        displayname += ' ({0})'.format(phone_number)
+    if matrix_id_phone is not None:
+        createUser(matrix_id_phone, displayname)
 
 def addUserToRoom(room_id, username, displayname=None):
     createUser(username, displayname)
@@ -164,7 +177,12 @@ def setRoomUsers(matrix_id, room_id):
     for username in username_set_goal:
         if username not in username_set_current:
             if isTwilioUser(username):
-                displayname = getPhoneNumber(matrix_id,username)
+                phone_number = getPhoneNumber(matrix_id,username)
+                displayname = db.getDisplayName(matrix_id, phone_number)
+                if displayname is None:
+                    displayname = phone_number
+                else:
+                    displayname += ' ({0})'.format(phone_number)
             else:
                 displayname = None
             addUserToRoom(room_id,username, displayname)
