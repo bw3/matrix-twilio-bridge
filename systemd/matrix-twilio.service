@@ -1,0 +1,14 @@
+[Unit]
+Destription=Matrix Bridge for Twilio
+After=network.target
+
+[Service]
+User=matrix-twilio
+
+Type=Simple
+WorkingDirectory=/var/lib/matrix-twilio-bridge
+ExecStartPre=venv/bin/matrix-twilio-bridge migrate
+ExecStart=venv/bin/gunicorn -w 2 'matrix_twilio_bridge:create_app()' -b 127.0.0.1:7806
+
+[Install]
+WantedBy=multi-user.target

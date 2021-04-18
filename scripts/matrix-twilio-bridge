@@ -1,6 +1,17 @@
-import os,json,urllib,uuid,sqlite3, sys
+#!/usr/bin/python3
+import os,json,urllib,uuid,sqlite3,sys,secrets,string,configparser
 
 import matrix_twilio_bridge.db
+
+REGISTRATION_YAML = """id: "Matrix Twilio Bridge"
+url: "{0}"
+as_token: "{1}"
+hs_token: "{2}"
+sender_localpart: "twiliobot"
+namespaces:
+  users:
+    - exclusive: true
+      regex: "@twilio.*" """
 
 try:
     cmd = sys.argv[1]
@@ -8,6 +19,40 @@ except:
     cmd = ''
 if cmd == 'migrate':
     matrix_twilio_bridge.db.db.migrate()
+elif cmd == 'generate-config':
+    alphabet = string.ascii_letters + string.digits
+    as_token = ''.join(secrets.choice(alphabet) for i in range(64))
+    hs_token = ''.join(secrets.choice(alphabet) for i in range(64))
+    config = configparser.ConfigParser(allow_no_value=True,delimiters=('=',))
+    config['homeserver'] = { 
+        'domain':       input('Homeserver Domain : '),
+        'address':      input('Homeserver URL    : ')
+    }
+    config['appservice'] = {
+        'as_token':     as_token,
+        'hs_token':     hs_token,
+        'address':      input('Bridge URL        : '),
+        'id':           'twilio',
+        'bot_username': 'twiliobot'
+    }
+    print('A permission entry can be a matrix id, a matrix homeserver domain, or *')
+    print('Press enter when done')
+    config['permissions'] = {}
+    while True:
+        permission =    input('Permission        : ')
+        if permission == '':
+            break
+        config['permissions'][permission] = None
+    with open('config', 'w') as f:
+        print('Write config')
+        config.write(f)
+    with open('regristation.yaml', 'w') as f:
+        print('Write registration.yaml')
+        f.write(REGISTRATION_YAML.format(
+            config['appservice']['address'],
+            config['appservice']['as_token'],
+            config['appservice']['hs_token']
+        ))
 else:
     print('Usage: {0} <command>'.format(sys.argv[0]))
     print('migrate')
