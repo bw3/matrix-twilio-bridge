@@ -60,14 +60,28 @@ def twilio_msg_recieved(matrix_id):
 @bp.route('/call', methods=['POST'])
 @validate_twilio_request
 def twilio_call(matrix_id):
+    twilio_client = util.getTwilioClient(matrix_id)
     direction = request.values['Direction']
     to_number = request.values['To']
     from_number = request.values['From']
     call_status = request.values["CallStatus"]
+    forwarded_from = request.values.get("ForwardedFrom", None)
     json_config = util.getIncomingNumberConfig(matrix_id, to_number)
     response = VoiceResponse()
     if direction == 'inbound':
-        if json_config["hunt_enabled"]:
+        from_hunt_number = False
+        for entry in json_config["hunt_numbers"]:
+            if entry[0] == from_number or entry[0] == forwarded_from:
+                from_hunt_number = True
+                break
+
+        loop_detected = False
+        if from_hunt_number:
+            for num in [from_number, forwarded_from]:
+                if len(twilio_client.calls.list(status="ringing",from_=num,to=to_number,limit=2)) > 1:
+                    loop_detected = True
+
+        if json_config["hunt_enabled"] and not from_hunt_number:
             dial = Dial(action = util.adjustUrl(request.url,"voicemail"),timeout=json_config["hunt_timeout"],answerOnBridge=True)
             for pair in json_config["hunt_numbers"]:
                 if pair[2] == "":
@@ -78,8 +92,10 @@ def twilio_call(matrix_id):
                     url = util.getAppserviceAddress() + "/twilio/check-speech"
                 dial.number(pair[0], send_digits=pair[1], url=url)
             response.append(dial)
-        else:
+        elif not loop_detected:
             return twilio_voicemail()
+        else:
+            response.reject()
     return str(response)
 
 @bp.route('/voicemail', methods=['POST'])
@@ -140,7 +156,7 @@ def twilio_voicemail_transcription(matrix_id):
     r = requests.get(recording_url+".mp3")
     room_id = util.findRoomId(matrix_id,[to_number] + [from_number])
     author = util.getBotMatrixId()
-    util.sendMsgToRoom(room_id,author, request.values["TranscriptionText"])
+    util.sendMsgToRoom(room_id,author, request.values.get("TranscriptionText","(No transcription available)"))
     return {}
 
 @bp.route('/reject', methods=['POST'])
