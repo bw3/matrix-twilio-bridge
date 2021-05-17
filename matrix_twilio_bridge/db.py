@@ -269,4 +269,10 @@ class DB:
         else:
             return result[0]
 
+    def allMatrixIds(self):
+        cur = self._get_conn().cursor()
+        cur.execute('SELECT matrix_id FROM twilio_config')
+        for row in cur:
+            yield row[0]
+
 db=DB()

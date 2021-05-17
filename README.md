@@ -44,6 +44,14 @@ Enable and start the systemd service:
 
     sudo systemctl enable --now matrix-twilio
 
+Edit crontab:
+
+    sudo -u matrix-twilio crontab -e
+
+And add this line:
+
+    15 * * * * /var/lib/matrix-twilio/venv/bin/matrix-twilio-bridge cron
+
 ## User config
 Start a direct message with `@twiliobot`, and type `config`.
 This will give you a link to your config page.

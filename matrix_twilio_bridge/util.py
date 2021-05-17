@@ -1,4 +1,4 @@
-import os,json,urllib,uuid,sqlite3,configparser, traceback
+import os,json,urllib,uuid,sqlite3,configparser,traceback,datetime
 
 from flask import (Flask, render_template, request, abort)
 import requests
@@ -251,6 +251,44 @@ def getIncomingNumberConfig(matrix_id, number):
     config.setdefault("voicemail_timeout", 300)
     config.setdefault("voicemail_transcribe", False)
     return config
+
+def recv_twilio_msg(matrix_id,conversation_sid,message_sid):
+    twilio_client = getTwilioClient(matrix_id)
+    message = twilio_client.conversations.conversations(conversation_sid).messages(message_sid).fetch()
+    author = getMatrixId(matrix_id,message.author)
+    numbers = get_conversation_participants(matrix_id,conversation_sid)
+    room_id = findRoomId(matrix_id,numbers,conversation_sid)
+    if message.media is not None:
+        twilio_auth = db.getTwilioAuthPair(matrix_id)
+        chat_service_sid = twilio_client.conversations.conversations(conversation_sid).fetch().chat_service_sid
+        for entry in message.media:
+            media_sid = entry["sid"]
+            content_type = entry["content_type"]
+            filename = entry["filename"]
+            r = requests.get("https://mcs.us1.twilio.com/v1/Services/" + chat_service_sid + "/Media/" + media_sid + "/Content", auth=twilio_auth)
+            postFileToRoom(room_id, author, content_type, r.content, filename)
+    if message.body is not None:
+        text = message.body
+        sendMsgToRoom(room_id,author, text)
+    twilio_client.conversations.conversations(conversation_sid).messages(message_sid).delete()
+
+def cron():
+    no_errors = True
+    for matrix_id in db.allMatrixIds():
+        print(matrix_id)
+        try:
+            twilio_client = getTwilioClient(matrix_id)
+            missed_messages = 0
+            for conversation in twilio_client.conversations.conversations.list():
+                for message in conversation.messages.list():
+                    if datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=1) > message.date_created:
+                        recv_twilio_msg(matrix_id,conversation.sid,message.sid)
+                        missed_messages += 1
+            print('  Processed {0} missed messages. '.format(missed_messages))
+        except:
+            traceback.print_exc()
+            no_errors = False
+    return no_errors
 
 def getHomeserverDomain():
     return config["homeserver"]["domain"]

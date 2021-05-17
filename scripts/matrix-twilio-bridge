@@ -2,6 +2,7 @@
 import os,json,urllib,uuid,sqlite3,sys,secrets,string,configparser
 
 import matrix_twilio_bridge.db
+import matrix_twilio_bridge.util
 
 REGISTRATION_YAML = """id: "Matrix Twilio Bridge"
 url: "{0}"
@@ -53,6 +54,9 @@ elif cmd == 'generate-config':
             config['appservice']['as_token'],
             config['appservice']['hs_token']
         ))
+elif cmd == 'cron':
+    if not matrix_twilio_bridge.util.cron():
+        sys.exit(1)
 else:
     print('Usage: {0} <command>'.format(sys.argv[0]))
     print('migrate')

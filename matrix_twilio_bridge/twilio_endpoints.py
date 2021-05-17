@@ -37,24 +37,7 @@ def validate_twilio_request(f):
 @bp.route('/conversation', methods=['POST'])
 @validate_twilio_request
 def twilio_msg_recieved(matrix_id):
-    author = util.getMatrixId(matrix_id,request.form['Author'])
-    conversation_sid = request.form['ConversationSid']
-    numbers = util.get_conversation_participants(matrix_id,conversation_sid)
-    room_id = util.findRoomId(matrix_id,numbers,conversation_sid)
-    if 'Media' in request.form:
-        twilio_client = util.getTwilioClient(matrix_id)
-        twilio_auth = db.getTwilioAuthPair(matrix_id)
-        chat_service_sid = twilio_client.conversations.conversations(conversation_sid).fetch().chat_service_sid
-        media = json.loads(request.form['Media'])
-        for entry in media:
-            media_sid = entry["Sid"]
-            content_type = entry["ContentType"]
-            filename = entry["Filename"]
-            r = requests.get("https://mcs.us1.twilio.com/v1/Services/" + chat_service_sid + "/Media/" + media_sid + "/Content", auth=twilio_auth)
-            util.postFileToRoom(room_id, author, content_type, r.content, filename)
-    if 'Body' in request.form:
-        text = request.form['Body']
-        util.sendMsgToRoom(room_id,author, text)
+    util.recv_twilio_msg(matrix_id,request.form['ConversationSid'],request.form['MessageSid'])
     return {}
 
 @bp.route('/call', methods=['POST'])
