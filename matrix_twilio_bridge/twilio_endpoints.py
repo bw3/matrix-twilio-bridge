@@ -150,7 +150,7 @@ def twilio_reject():
 
 def check_human_key(url):
     response = VoiceResponse()
-    gather = Gather(input='dtmf', timeout=10, num_digits=1, action=url)
+    gather = Gather(input='dtmf', timeout=10, numDigits=1, action=url, finishOnKey='')
     gather.say('To accept this call, press any key. '*3)
     response.append(gather)
     response.hangup()
@@ -158,7 +158,7 @@ def check_human_key(url):
 
 def check_human_speech(url):
     response = VoiceResponse()
-    gather = Gather(input='speech dtmf', timeout=10, speechTimeout=1, num_digits=1, action=url, hints='accept')
+    gather = Gather(input='speech dtmf', timeout=10, speechTimeout=1, numDigits=1, action=url, hints='accept', finishOnKey='')
     gather.say('To accept this call, press any key or say accept. '*3)
     response.append(gather)
     response.hangup()
@@ -184,13 +184,13 @@ def twilio_check_speech():
 @bp.route('/check-accept', methods=['POST'])
 def twilio_check_accept():
     response = VoiceResponse()
-    if not "accept" in request.values.get("SpeechResult","accept"):
+    if not "accept" in request.values.get("SpeechResult","accept").lower():
         response.hangup()
     return str(response)
 
 @bp.route('/dial-number/<number>', methods=['POST'])
 def twilio_dial_number(number):
-    if not "accept" in request.values.get("SpeechResult","accept"):
+    if not "accept" in request.values.get("SpeechResult","accept").lower():
         response = VoiceResponse()
         response.reject()
         return str(response)
