@@ -48,6 +48,21 @@ def createRoom(matrix_id,numbers):
     r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = getMatrixHeaders(), json=json)
     room_id = r.json()['room_id']
     db.setRoomForNumbers(matrix_id, room_id, numbers)
+    json = {
+        "ban":100,
+        "invite":100,
+        "kick":100,
+        "events": {
+            "m.room.name": 0,
+            "m.room.power_levels": 100
+        },
+        "events_default":0,
+        "users": {
+            getBotMatrixId(): 100
+        }
+    }
+    r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/rooms/'+urllib.parse.quote(room_id)+'/state/m.room.power_levels', headers = getMatrixHeaders(), json=json)
+    r.json()
     setRoomUsers(matrix_id, room_id)
     return room_id
     
