@@ -47,7 +47,7 @@ elif cmd == 'generate-config':
     with open('config', 'w') as f:
         print('Write config')
         config.write(f)
-    with open('regristation.yaml', 'w') as f:
+    with open('registration.yaml', 'w') as f:
         print('Write registration.yaml')
         f.write(REGISTRATION_YAML.format(
             config['appservice']['address'],

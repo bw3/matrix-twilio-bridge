@@ -30,7 +30,7 @@ Install in virtualenv:
 
 Copy systemd service file, and edit as needed:
 
-    sudo cp systemd/matrix-twilio-bridge.service /etc/systemd/system/
+    sudo cp systemd/matrix-twilio.service /etc/systemd/system/
 
 If using a reverse proxy, set it up now. https://gunicorn.org/#deployment
 
@@ -38,7 +38,7 @@ Generate Config Files:
 
     sudo -u matrix-twilio venv/bin/matrix-twilio-bridge generate-config
 
-Add `/var/lib/matrix-twilio-bridge/registration.yaml` to the list of `app_service_config_files` in `/etc/synapse/homeserver.yaml`
+Add `/var/lib/matrix-twilio/registration.yaml` to the list of `app_service_config_files` in `/etc/synapse/homeserver.yaml`
 
 Enable and start the systemd service:
 
