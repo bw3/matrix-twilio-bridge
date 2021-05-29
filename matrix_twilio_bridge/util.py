@@ -35,8 +35,16 @@ def createRoom(matrix_id,numbers):
     is_direct = len(numbers) == 2
     (twilio_number, non_twilio_numbers) = validateNumbers(matrix_id,numbers)
     if is_direct:
+        phone_number = non_twilio_numbers[0]
+        matrix_id_phone = getMatrixId(matrix_id,phone_number)
         json["is_direct"] = True
-        json["invite"] = [matrix_id, getMatrixId(matrix_id,non_twilio_numbers[0])]
+        json["invite"] = [matrix_id, matrix_id_phone]
+        displayname = db.getDisplayName(matrix_id,phone_number)
+        if displayname is None:
+            displayname = phone_number
+        else:
+            displayname += ' ({0})'.format(phone_number)
+        createUser(matrix_id_phone,displayname)
     r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/createRoom', headers = getMatrixHeaders(), json=json)
     room_id = r.json()['room_id']
     db.setRoomForNumbers(matrix_id, room_id, numbers)
