@@ -22,7 +22,11 @@ def validate_twilio_request(f):
     def decorated_function(*args, **kwargs):
         (matrix_id,auth) = db.getMatrixIdAuthFromSid(request.form["AccountSid"])
         validator = RequestValidator(auth)
-        request_valid = validator.validate( request.url, request.form, request.headers.get('X-TWILIO-SIGNATURE', ''))
+        twilio_signature = ''
+        for (hdr,val) in request.headers.items():
+            if hdr.lower() == 'x-twilio-signature':
+                twilio_signature = val
+        request_valid = validator.validate( request.url, request.form, twilio_signature)
         if request_valid and util.isMatrixIdAllowed(matrix_id):
             try:
                 return f(matrix_id, *args, **kwargs)
