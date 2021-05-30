@@ -26,7 +26,11 @@ def validate_twilio_request(f):
         for (hdr,val) in request.headers.items():
             if hdr.lower() == 'x-twilio-signature':
                 twilio_signature = val
-        request_valid = validator.validate( request.url, request.form, twilio_signature)
+        url =  urllib.parse.urlparse(util.getAppserviceAddress()).scheme
+        url += '://'
+        url += urllib.parse.urlparse(util.getAppserviceAddress()).netloc
+        url += urllib.parse.urlparse(request.url).path
+        request_valid = validator.validate( url, request.form, twilio_signature)
         if request_valid and util.isMatrixIdAllowed(matrix_id):
             try:
                 return f(matrix_id, *args, **kwargs)
