@@ -26,10 +26,7 @@ def validate_twilio_request(f):
         for (hdr,val) in request.headers.items():
             if hdr.lower() == 'x-twilio-signature':
                 twilio_signature = val
-        url =  urllib.parse.urlparse(util.getAppserviceAddress()).scheme
-        url += '://'
-        url += urllib.parse.urlparse(util.getAppserviceAddress()).netloc
-        url += urllib.parse.urlparse(request.url).path
+        url = util.getAppserviceAddress().rstrip('/') + urllib.parse.urlparse(request.url).path
         request_valid = validator.validate( url, request.form, twilio_signature)
         if request_valid and util.isMatrixIdAllowed(matrix_id):
             try:
@@ -58,6 +55,7 @@ def twilio_call(matrix_id):
     call_status = request.values["CallStatus"]
     forwarded_from = request.values.get("ForwardedFrom", None)
     json_config = util.getIncomingNumberConfig(matrix_id, to_number)
+    url = util.getAppserviceAddress().rstrip('/') + urllib.parse.urlparse(request.url).path
     response = VoiceResponse()
     if direction == 'inbound':
         from_hunt_number = False
@@ -73,7 +71,7 @@ def twilio_call(matrix_id):
                     loop_detected = True
 
         if json_config["hunt_enabled"] and not from_hunt_number:
-            dial = Dial(action = util.adjustUrl(request.url,"voicemail"),timeout=json_config["hunt_timeout"],answerOnBridge=True)
+            dial = Dial(action = util.adjustUrl(url,"voicemail"),timeout=json_config["hunt_timeout"],answerOnBridge=True)
             for pair in json_config["hunt_numbers"]:
                 if pair[2] == "":
                     url = util.getAppserviceAddress() + "/twilio/check-accept"
@@ -101,6 +99,7 @@ def twilio_voicemail(matrix_id):
     except:
         call_status = request.values["CallStatus"]
     json_config = util.getIncomingNumberConfig(matrix_id, to_number)
+    url = util.getAppserviceAddress().rstrip('/') + urllib.parse.urlparse(request.url).path
     response = VoiceResponse()
     if json_config["voicemail_enabled"] and call_status != "completed":
         room_id = util.findRoomId(matrix_id,[to_number] + [from_number])
@@ -111,9 +110,9 @@ def twilio_voicemail(matrix_id):
             "timeout":                  json_config["voicemail_timeout"], 
             "transcribe":               json_config["voicemail_transcribe"], 
             "playBeep":                 True, 
-            "recordingStatusCallback":  util.adjustUrl(request.url,"voicemail_recording"),
-            "action":                   util.adjustUrl(request.url,"reject"),
-            "transcribeCallback":       util.adjustUrl(request.url,"voicemail_transcription")
+            "recordingStatusCallback":  util.adjustUrl(url,"voicemail_recording"),
+            "action":                   util.adjustUrl(url,"reject"),
+            "transcribeCallback":       util.adjustUrl(url,"voicemail_transcription")
         }
         response.record(**kwargs)
     else:
