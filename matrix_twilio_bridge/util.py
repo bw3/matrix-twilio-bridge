@@ -138,6 +138,7 @@ def createUser(username, displayname):
     exists = r.status_code != 404
     if not exists:
         user_data = {
+            "type": "m.login.application_service",
             "username": username.split(':')[0].removeprefix('@')
         }
         r = requests.post(getHomeserverAddress() + '/_matrix/client/r0/register', headers = getMatrixHeaders(), json = user_data)

@@ -96,6 +96,7 @@ def matrix_event(txnId):
 def matrix_user_exists(userId):
     confirm_auth(request)
     user_data = {
+        "type": "m.login.application_service",
         "username": userId.split(':')[0].removeprefix('@')
     }
     r = requests.post(util.getHomeserverAddress() + '/_matrix/client/r0/register', headers = util.getMatrixHeaders(), json = user_data, params={"user_id":util.getBotMatrixId()})
