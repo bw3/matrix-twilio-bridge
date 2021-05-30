@@ -57,16 +57,17 @@ Start a direct message with `@twiliobot`, and type `config`.
 This will give you a link to your config page.
 
 ### Twilio config
-Login to your twilio account. 
-Copy your SID and auth token into the bridge config page. 
-Go to Conversations > Configure > Global Webhooks
-Set Post-Event URL as `<base-url>/twilio/conversation`
-Check onMessageAdded, and click Save
-Go to Conversations > Configure > Defaults
-Unlock Handle Inbound Messages with Conversations
-Go to Phone Numbers > Manager Numbers > Active Numbers and click on the phone number you want to set up.
-For voice calls, set a webhook for <base-url>/twilio/call
-For messaging, set to message service and default conversations service
+- Login to your twilio account. 
+- Copy your SID and auth token into the bridge config page. 
+- Go to Conversations > Configure > Global Webhooks
+- Set Post-Event URL as `<base-url>/twilio/conversation`
+- Check onMessageAdded, and click Save
+- Go to Conversations > Configure > Defaults
+- Unlock Handle Inbound Messages with Conversations
+- Go to Phone Numbers > Manager Numbers > Active Numbers and click on the phone number you want to set up.
+- For voice calls, set a webhook for <base-url>/twilio/call
+- For messaging, set to message service and default conversations service
+- Default Conversations Service > Integration: Autocreate a Conversation
 
 ### Incoming Numbers
 #### Forwarding
