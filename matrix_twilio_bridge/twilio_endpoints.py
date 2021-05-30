@@ -62,16 +62,16 @@ def twilio_call(matrix_id):
         for entry in json_config["hunt_numbers"]:
             if entry[0] == from_number or entry[0] == forwarded_from:
                 from_hunt_number = True
+                matching_hunt_number = entry[0]
                 break
 
         loop_detected = False
         if from_hunt_number:
-            if len(twilio_client.calls.list(status="ringing",limit=2)) > 1:
+            ringing_calls = twilio_client.calls.list(status="ringing",to=matching_hunt_number,limit=2)
+            queued_calls = twilio_client.calls.list(status="queued",to=matching_hunt_number,limit=2)
+            for call in ringing_calls + queued_calls:
                 loop_detected = True
-            if len(twilio_client.calls.list(status="queued",limit=2)) > 0:
-                loop_detected = True
-            if len(twilio_client.calls.list(status="in-progress",limit=2)) > 0:
-                loop_detected = True
+                call.update(status='completed')
 
         if json_config["hunt_enabled"] and not from_hunt_number:
             dial = Dial(action = util.adjustUrl(url,"voicemail"),timeout=json_config["hunt_timeout"],answerOnBridge=True)
