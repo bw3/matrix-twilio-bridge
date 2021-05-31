@@ -302,12 +302,20 @@ def cron():
         print(matrix_id)
         try:
             twilio_client = getTwilioClient(matrix_id)
+            incoming_phone_numbers = twilio_client.incoming_phone_numbers.list(limit=20)
+            numbers = set()
+            for record in incoming_phone_numbers:
+                numbers.add(record.phone_number)
             missed_messages = 0
             for conversation in twilio_client.conversations.conversations.list():
                 for message in conversation.messages.list():
-                    if datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=1) > message.date_created:
-                        recv_twilio_msg(matrix_id,conversation.sid,message.sid)
-                        missed_messages += 1
+                    if message.author in numbers:
+                        if datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1) > message.date_created:
+                            message.delete()
+                    else:
+                        if datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=1) > message.date_created:
+                            recv_twilio_msg(matrix_id,conversation.sid,message.sid)
+                            missed_messages += 1
             print('  Processed {0} missed messages. '.format(missed_messages))
         except:
             traceback.print_exc()
