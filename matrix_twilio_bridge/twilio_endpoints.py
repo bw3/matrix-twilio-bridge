@@ -71,7 +71,8 @@ def twilio_call(matrix_id):
             queued_calls = twilio_client.calls.list(status="queued",to=matching_hunt_number,limit=2)
             for call in ringing_calls + queued_calls:
                 loop_detected = True
-                call.update(status='completed')
+                parent_call = twilio_client.calls(call.parent_call_sid).fetch()
+                parent_call.update(url=util.adjustUrl(url,"voicemail-no-notify"))
 
         if json_config["hunt_enabled"] and not from_hunt_number:
             dial = Dial(action = util.adjustUrl(url,"voicemail"),timeout=json_config["hunt_timeout"],answerOnBridge=True)
@@ -85,14 +86,15 @@ def twilio_call(matrix_id):
                 dial.number(pair[0], send_digits=pair[1], url=url)
             response.append(dial)
         elif not loop_detected:
-            return twilio_voicemail()
+            return twilio_voicemail(True)
         else:
             response.reject()
     return str(response)
 
-@bp.route('/voicemail', methods=['POST'])
+@bp.route('/voicemail', methods=['POST'], defaults={'send_notification':True})
+@bp.route('/voicemail-no-notify', methods=['POST'], defaults={'send_notification':False})
 @validate_twilio_request
-def twilio_voicemail(matrix_id):
+def twilio_voicemail(matrix_id,send_notification):
     twilio_client = util.getTwilioClient(matrix_id)
     call = twilio_client.calls(request.values["CallSid"]).fetch()
     to_number = call.to
@@ -107,7 +109,8 @@ def twilio_voicemail(matrix_id):
     if json_config["voicemail_enabled"] and call_status != "completed":
         room_id = util.findRoomId(matrix_id,[to_number] + [from_number])
         author = util.getBotMatrixId()
-        util.sendMsgToRoom(room_id,author, "missed call")
+        if send_notification:
+            util.sendMsgToRoom(room_id,author, "missed call")
         response.say(json_config["voicemail_tts"])
         kwargs = {
             "timeout":                  json_config["voicemail_timeout"], 
