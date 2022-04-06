@@ -249,6 +249,23 @@ def postFileToRoom(room_id, username, mimetype, data, filename):
     }
     r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id + '/send/m.room.message/'+str(uuid.uuid4()), headers = getMatrixHeaders(), json = msg_data, params={"user_id":username} )
 
+def postVoicemailToRoom(room_id, username, mimetype, data, filename, seconds):
+    r = requests.post(getHomeserverAddress() + '/_matrix/media/r0/upload', data=data, headers = getMatrixHeaders() | {'Content-Type':mimetype})
+    if r.status_code != 200:
+        abort(500)
+    content_uri = r.json()["content_uri"]
+    msg_data = {
+        "msgtype": "m.audio",
+        "body": filename,
+        "url": content_uri,
+        "info": {
+            "mimetype": mimetype,
+            "duration": seconds
+        },
+        "org.matrix.msc3245.voice": {}
+    }
+    r = requests.put(getHomeserverAddress() + '/_matrix/client/r0/rooms/' + room_id + '/send/m.room.message/'+str(uuid.uuid4()), headers = getMatrixHeaders(), json = msg_data, params={"user_id":username} )
+
 def getTwilioClient(matrix_id):
     try:
         (sid,auth) = db.getTwilioAuthPair(matrix_id)

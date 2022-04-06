@@ -137,7 +137,8 @@ def twilio_voicemail_recording(matrix_id):
     r = requests.get(recording_url+".mp3")
     room_id = util.findRoomId(matrix_id,[to_number] + [from_number])
     author = util.getBotMatrixId()
-    util.postFileToRoom(room_id, author, r.headers["content-type"], r.content, "voicemail.mp3")
+    seconds = request.values["RecordingDuration"]
+    util.postVoicemailToRoom(room_id, author, r.headers["content-type"], r.content, "voicemail.mp3", seconds)
     return {}
 
 @bp.route('/voicemail_transcription', methods=['POST'])
