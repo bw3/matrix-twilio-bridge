@@ -3,7 +3,7 @@ An alternative to google voice.
 Supports:
 - SMS
 - MMS (picture messages)
-- Group SMS / MMS
+- ~~Group SMS / MMS~~ As of 2022, twilio has dropped support for Group SMS.
 - Forward voice calls to other phone numbers. (matrix voip not supported)
 - Voicemails as audio attachments and text in your matrix client. 
 
